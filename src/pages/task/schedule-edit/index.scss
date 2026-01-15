@@ -1,0 +1,140 @@
+.schedule-edit-page {
+  padding: 20px;
+  padding-bottom: 80px; /* 为底部按钮留出空间 */
+  background-color: #f0f7ff; // 参考任务页的背景色
+  min-height: 100vh; // 撑满整个视口
+  
+  .content {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #333;
+  }
+  
+  .form-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 30px;
+    border-bottom: 1px solid #e0e0e0;
+    
+    .label {
+      width: 120px;
+      font-size: 30px;
+      color: #333;
+    }
+    
+    switch {
+      transform: scale(0.8);
+    }
+    
+    input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 8px 10px;
+      height: 30px;
+      box-sizing: border-box;
+      text-align: right;
+      background-color: transparent;
+      font-size: 24px;
+    }
+    
+    picker {
+      padding: 0 10px;
+    }
+    
+    .file-picker {
+      width: 100%;
+      text-align: right;
+      font-size: 18px;
+    }
+    
+    .day-selector {
+      display: flex;
+      flex: 1;
+      justify-content: space-around;
+      
+      .day-item {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        
+        .day-circle {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-size: 18px;
+          font-weight: 500;
+          background-color: #f9f9f9;
+          color: #333;
+          cursor: pointer;
+          border: 1px solid #ff5722; /* 添加边框 */
+                
+          &.selected {
+            background-color: #ff5722;
+            color: white;
+          }
+        }
+      }
+    }
+    
+    .slider-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      height: 30px;
+      
+      slider {
+        flex: 1;
+        height: 20px;
+        margin-right: 10px;
+      }
+    }
+    
+    .time-picker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 24px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      height: 50px;
+      box-sizing: border-box;
+      
+      &:after {
+        content: '>'; 
+        color: #999;
+      }
+    }
+  }
+  
+  .bottom-button-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    
+    .confirm-button {
+      background-color: #4a90e2; // 参照任务页新增任务按钮的蓝色渐变主色调
+      color: white;
+      border: none;
+      border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+      padding: 10px 20px;
+      margin-bottom: 20px;
+      font-size: 24px;
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+    }
+    
+    .confirm-button::after {
+      border: none;
+    }
+  }
+}

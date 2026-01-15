@@ -1,0 +1,92 @@
+.device-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid #c7d9f2;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  background-color: #f9f9f9;
+  position: relative;
+  background-color: #e8f2ff; // 新的蓝色主题背景
+  
+  .device-info {
+    display: flex;
+    align-items: center;
+    
+    .bluetooth-icon {
+      width: 30px;
+      height: 30px;
+      background-color: #4a90e2; // 使用参考HTML的蓝色
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    
+    .device-details {
+      display: flex;
+      flex-direction: column;
+      
+      .device-name {
+        font-size: 16px;
+        font-weight: bold;
+        color: #2c5aa0; // 使用参考HTML的深蓝色
+      }
+      
+      .device-status {
+        font-size: 12px;
+        color: #2e7d32; // 使用参考HTML的绿色
+      }
+    }
+  }
+  
+  .action-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #4a90e2; // 使用参考HTML的蓝色
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 16px;
+  }
+  
+  .connect-btn {
+    background-color: #4caf50;
+  }
+  
+  .disconnect-btn {
+    background-color: #f44336; // 红色断开连接按钮
+  }
+  
+  .action-btn::after {
+    border: none;
+  }
+  
+  /* 左滑删除区域 */
+  .delete-area {
+    position: absolute;
+    right: -100px;
+    top: 0;
+    bottom: 0;
+    width: 100px;
+    background-color: #f44336;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 0 4px 4px 0;
+    transition: right 0.3s ease;
+    z-index: -1;
+  }
+  
+  .swipe-left {
+    transform: translateX(-100px);
+  }
+}
