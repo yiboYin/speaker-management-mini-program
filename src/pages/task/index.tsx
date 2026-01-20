@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button } from '@tarojs/components'
-import Taro, { useReachBottom, navigateTo, eventCenter, getCurrentInstance } from '@tarojs/taro'
+import Taro, { useReachBottom, navigateTo, eventCenter } from '@tarojs/taro'
 import TaskTabs from '@/pages/task/components/TaskTabs'
 import TaskItem from '@/pages/task/components/TaskItem'
 import IntervalItem from '@/pages/task/components/IntervalItem'
