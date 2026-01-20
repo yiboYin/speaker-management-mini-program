@@ -1,0 +1,128 @@
+.synthesis-page {
+  padding: 20px;
+  background-color: #f0f7ff; // 参照导入页面的背景色
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  
+  // 顶部输入框容器
+  .input-container {
+    padding: 15px 0;
+    
+    .input-field {
+      width: calc(100% - 20px); /* 减去左右边距 */
+      min-height: 80px;
+      padding: 10px;
+      border: none; /* 去除边框 */
+      border-radius: 4px;
+      font-size: 30px; /* 设置为30px */
+      background-color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin: 0 auto; /* 水平居中 */
+      
+      &::placeholder {
+        color: #999;
+      }
+      
+      &:focus {
+        outline: none;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      }
+    }
+  }
+  
+  // 历史记录区域
+  .history-section {
+    margin-top: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 15px 25px; // 加大左右padding
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-height: 380px; /* 限制最大高度 */
+    overflow-y: auto; /* 如果内容超出则显示滚动条 */
+    
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      
+      .history-title {
+        font-size: 36px;
+        color: #333;
+        font-weight: bold;
+        flex: 1; // 设置flex: 1
+      }
+      
+      .clear-btn {
+        background-color: #f44336;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 28px;
+        line-height: 1.5; // 设置行高
+        
+        &::after {
+          border: none;
+        }
+      }
+    }
+    
+    .history-list {
+      height: auto;
+      
+      .history-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        
+        &:last-child {
+          border-bottom: none;
+        }
+        
+        .history-text {
+          flex: 1;
+          font-size: 28px;
+          color: #333;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .arrow {
+          color: #999;
+          font-size: 28px;
+        }
+      }
+    }
+  }
+  
+  // 底部开始合成按钮容器
+  .bottom-button-container {
+    position: absolute;
+    bottom: 40px; /* 向上移动20px */
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    
+    .start-synthesis-btn {
+      background-color: #4a90e2; // 参照导入页发送到设备按钮的蓝色渐变主色调
+      color: white;
+      border: none;
+      border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+      padding: 12px 20px;
+      font-size: 30px;
+      width: auto;
+      max-width: 300px;
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+      
+      &::after {
+        border: none;
+      }
+    }
+  }
+}

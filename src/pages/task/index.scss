@@ -1,0 +1,65 @@
+.task-page {
+  padding: 20px;
+  padding-bottom: 80px; // 为底部按钮留出空间
+  background-color: #f0f7ff; // 参考连接页面的背景色
+  min-height: 100vh; // 撑满整个视口
+  margin-top: 50px; // 与tab栏高度一致
+  overflow: hidden; // 隐藏溢出内容
+  
+  .content {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #333;
+  }
+  
+  .schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: #f0f7ff; // 添加背景色，与页面背景一致
+    padding: 10px; // 添加内边距，避免内容贴边
+    border-radius: 8px; // 添加圆角，与任务卡片一致
+  }
+  
+  .bottom-button-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 20px;
+    background-color: #f0f7ff; // 与整体背景色一致
+    box-shadow: none; // 去除阴影
+    z-index: 100;
+    
+    .bottom-button {
+      width: 45%;
+      padding: 10px;
+      font-size: 30px; // 调整字体大小
+      border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+      
+      &.send-to-device {
+        background-color: #4a90e2; // 参照连接页面搜索设备按钮的蓝色渐变主色调
+        color: white;
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+      }
+      
+      &.preview {
+        background-color: #f44336; // 红色背景
+        color: white;
+      }
+      
+      &::after {
+        border: none;
+      }
+      
+      &[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background-color: #cccccc; // 设置为灰色背景
+        color: #666666; // 设置为深灰色文字
+      }
+    }
+  }
+}

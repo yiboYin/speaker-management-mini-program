@@ -1,0 +1,184 @@
+// 导入页面整体布局
+.import-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f7ff; // 参考任务页的背景色
+  
+  // 工具栏（移除绝对定位）
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 15px; /* 进一步增加上下padding */
+    box-sizing: border-box; /* 添加box-sizing: border-box; */
+    
+    .left-buttons {
+      display: flex;
+      gap: 10px;
+      
+      .toolbar-btn {
+        background-color: #4a90e2; // 参照发送至设备按钮的蓝色渐变主色调
+        color: white;
+        border: none;
+        border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+        padding: 4px 15px; /* 进一步减小上下内边距 */
+        font-size: 24px; /* 调整文字大小到24px */
+        box-sizing: border-box; /* 添加box-sizing: border-box; */
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+            
+        &::after {
+          border: none;
+        }
+      }
+    }
+    
+    .right-buttons {
+      .clear-btn {
+        background-color: #f44336; // 红色背景
+        color: white; // 白色文字
+        border: none;
+        border-radius: 20px; /* 增加圆角，使按钮看起来像胶囊 */
+        padding: 4px 15px; /* 进一步减小上下内边距 */
+        font-size: 24px; /* 调整文字大小到24px */
+        box-sizing: border-box; /* 添加box-sizing: border-box; */
+        
+        &::after {
+          border: none;
+        }
+      }
+    }
+  }
+    
+    .left-buttons {
+      display: flex;
+      gap: 10px;
+      
+      .toolbar-btn {
+        background-color: #00bcd4;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 14px;
+        
+        &::after {
+          border: none;
+        }
+      }
+    }
+    
+    .right-buttons {
+      .clear-btn {
+        background-color: #f44336; // 红色背景
+        color: white; // 白色文字
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 14px;
+        
+        &::after {
+          border: none;
+        }
+      }
+    }
+  
+  // 可滚动的文件列表区域
+  .file-list-container {
+    flex: 1;
+    margin-top: 0; /* 移除为固定工具栏预留的空间 */
+    height: calc(100vh - 70px); /* 根据工具栏高度调整 */
+    box-sizing: border-box;
+    padding: 15px; /* 增加整体内边距 */
+  }
+  
+  // 底部操作按钮容器
+  .bottom-action-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 20px;
+    background-color: #f0f7ff; // 与整体背景色一致
+    box-shadow: none; // 去除阴影
+    z-index: 100;
+    
+    .action-btn {
+      width: 45%;
+      padding: 10px;
+      font-size: 30px; /* 调整文字大小到30px */
+      border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+      
+      &.send-to-device {
+        background-color: #4a90e2; // 参照连接页面搜索设备按钮的蓝色渐变主色调
+        color: white;
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+      }
+      
+      &.preview {
+        background-color: #f44336; // 红色背景
+        color: white;
+      }
+      
+      &::after {
+        border: none;
+      }
+    }
+  }
+  
+  .file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid #b3d4ff; // 参照任务卡片的边框颜色
+    border-radius: 8px; // 参照任务卡片的圆角
+    margin-bottom: 20px; // 进一步增大底部margin
+    background-color: #e8f4ff; // 参照任务卡片的背景色
+    
+    .file-name {
+      flex: 1;
+      font-size: 24px; // 调整字体大小到24px
+      color: #333;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .file-duration {
+      width: 80px;
+      text-align: right;
+      font-size: 24px; // 调整字体大小到24px
+      color: #666;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .delete-btn {
+      background-color: transparent; // 无背景色
+      border: none; // 无边框
+      color: #999; // 灰色文字
+      font-size: 32px; // 放大字体大小
+      padding: 0; // 无内边距
+      margin-left: 30px; // 增大左侧间距
+      margin-right: 20px; // 设置右侧间距
+      
+      &:hover {
+        color: #f44336; // 鼠标悬停时变为红色
+      }
+      
+      &::after {
+        border: none; // 移除默认边框
+      }
+    }
+    
+    &.selected {
+      background-color: #d1e8ff; // 更加突出的浅蓝色背景表示选中
+      border: 1px solid #1976d2; // 更深的蓝色边框
+      border-left: 4px solid #1976d2; // 左侧添加更深的蓝色边框
+    }
+  }
+}

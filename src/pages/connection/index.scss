@@ -1,0 +1,144 @@
+.connection-page {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f0f7ff; // 参考HTML的背景色
+  
+  .section {
+    margin-bottom: 30px;
+    
+    .section-title {
+      font-size: 24px; // 增大标题字体
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 10px;
+      display: block;
+    }
+    
+    .connection-area {
+      background: linear-gradient(135deg, #e8f2ff 0%, #d9e9ff 100%); // 参考HTML的连接区域样式
+      border-radius: 12px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between; // 左右分布
+      align-items: center;
+      margin-bottom: 20px;
+      position: relative;
+      border: 1px solid #c7d9f2;
+      padding: 20px; // 调整内边距
+      margin-top: 0; // 重置上外边距
+          
+      .connection-content {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex: 1; // 添加flex: 1
+              
+        .connection-icon {
+          font-size: 60px; // 调小图标大小
+          color: #4a90e2;
+          display: flex;
+          justify-content: flex-start;
+          align-items: center;
+        }
+              
+        .connection-text {
+          color: #2c3e50;
+          font-size: 24px; // 调整字号以适应新的布局
+          font-weight: 900; // 加粗字重
+          text-align: left;
+          margin-left: 15px; // 增加名称的左margin
+        }
+      }
+          
+      .disconnect-btn {
+        margin-top: 0;
+        padding: 10px 20px;
+        background-color: #f44336; // 红色按钮
+        color: white;
+        border: none;
+        border-radius: 25px; // 圆润按钮
+        font-size: 24px; // 与搜索设备按钮保持一致
+      }
+          
+      .device-info {
+        background-color: #e8f4ff;
+        border-radius: 12px;
+        padding: 15px;
+        margin-top: 10px;
+        display: block;
+        border: 1px solid #b3d4ff;
+        width: 100%;
+            
+        .device-name {
+          font-weight: 900; // 加粗字重
+          margin-bottom: 5px;
+          color: #2c5aa0;
+          font-size: 48px; // 调整字号为48px
+          text-align: center;
+        }
+            
+        .device-status {
+          display: flex;
+          align-items: center;
+          color: #2e7d32;
+          font-size: 16px;
+          justify-content: center;
+                      
+          .status-icon {
+            margin-right: 5px;
+          }
+        }
+      }
+            
+      .disconnect-btn::after {
+        border: none;
+      }
+    }
+    
+    .device-item {
+      padding: 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background-color: #f9f9f9;
+      
+      .device-name {
+        font-size: 20px; // 增大设备名称字体
+        color: #333;
+      }
+      
+      .device-status {
+        font-size: 16px; // 增大状态字体
+        color: #666;
+      }
+    }
+    
+    .no-device {
+      padding: 10px;
+      color: #999;
+      font-style: italic;
+      font-size: 18px; // 增大无设备提示字体
+    }
+  }
+  
+  .search-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    background-color: #4a90e2; // 使用参考HTML的蓝色渐变主色调
+    color: white;
+    border: none;
+    border-radius: 30px; // 更圆润的按钮
+    padding: 15px 20px;
+    font-size: 24px; // 增大按钮字体
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
+  }
+  
+  .search-btn::after {
+    border: none;
+  }
+}
