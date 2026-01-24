@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Button } from '@tarojs/components';
+import { Device } from '@/types/device';
 import './DeviceItem.scss';
 
 interface DeviceItemProps {

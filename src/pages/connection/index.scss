@@ -123,6 +123,62 @@
     }
   }
   
+  .available-devices {
+    .devices-list {
+      overflow-y: auto;
+
+      .device-item {
+        background: linear-gradient(135deg, #e8f2ff 0%, #d9e9ff 100%); // 使用与当前连接设备相同的背景色
+        border-radius: 12px;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between; // 左右分布
+        align-items: center;
+        margin-bottom: 20px;
+        position: relative;
+        border: 1px solid #c7d9f2;
+        padding: 20px; // 调整内边距
+        margin-top: 0; // 重置上外边距
+
+        .device-info {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          flex: 1; // 添加flex: 1
+
+          .device-name {
+            color: #2c3e50;
+            font-size: 24px; // 调整字号以适应新的布局
+            font-weight: 900; // 加粗字重
+            text-align: left;
+          }
+
+          .device-rssi {
+            font-size: 24px; // 与设备名称字号保持一致
+            color: #606266;
+            margin-left: 10px;
+          }
+          
+
+        }
+
+        .connect-btn {
+          margin-top: 0;
+          padding: 10px 20px;
+          background-color: #409eff; // 使用蓝色按钮
+          color: white;
+          border: none;
+          border-radius: 25px; // 圆润按钮
+          font-size: 24px; // 与搜索设备按钮保持一致
+
+          &::after {
+            border: none;
+          }
+        }
+      }
+    }
+  }
+  
   .search-btn {
     position: fixed;
     bottom: 30px;

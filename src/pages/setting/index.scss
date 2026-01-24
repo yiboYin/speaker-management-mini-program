@@ -4,6 +4,49 @@
   box-sizing: border-box;
   background-color: #f0f7ff; // 参照导入页的背景色
   
+  .connected-device-info {
+    border: 2px solid #666; // 实线边框
+    border-radius: 15px; // 更大的圆角
+    padding: 20px; // 内边距
+    box-sizing: border-box;
+    background-color: #fafafa; // 浅灰色背景
+    position: relative; // 设置相对定位，以便标题可以绝对定位
+    margin-bottom: 30px; // 与下方控件面板的间距
+    
+    .device-info-title {
+      font-size: 32px; // 标题字体大小
+      font-weight: bold;
+      color: #333;
+      text-align: center; // 居中对齐
+      font-family: 'Comic Sans MS', 'Arial', sans-serif; // 使用更轻松的手写体字体
+      position: absolute; // 绝对定位
+      top: -30px; // 稍微向上移动，让线穿过文字中间
+      left: 20px; // 靠左一些
+      background-color: #fafafa; // 背景颜色与容器相同，遮住框线
+      padding: 0 10px; // 左右内边距，使文字不紧贴边缘
+      z-index: 1; // 确保标题在边框之上
+    }
+    
+    .device-details {
+      display: flex;
+      flex-direction: column;
+      gap: 10px; // 详情项之间的间距
+      
+      .device-name, .device-id, .device-status, .device-rssi {
+        font-size: 24px; // 字体大小
+        color: #333;
+        padding: 5px 0;
+      }
+    }
+    
+    .no-device-connected {
+      font-size: 24px; // 字体大小
+      color: #999; // 灰色表示无设备
+      text-align: center; // 居中对齐
+      padding: 20px 0; // 上下内边距
+    }
+  }
+  
   .control-panel {
     border: 2px solid #666; // 实线边框
     border-radius: 15px; // 更大的圆角
@@ -11,6 +54,8 @@
     box-sizing: border-box;
     background-color: #fafafa; // 浅灰色背景
     position: relative; // 设置相对定位，以便标题可以绝对定位
+    margin-top: 20px; // 增加上边距
+
     
     .panel-title {
       font-size: 32px; // 标题字体大小
@@ -175,6 +220,11 @@
         border: 1px solid #eee;
         border-radius: 6px; // 圆角
         
+        &.selected {
+          background-color: #e3f2fd; // 选中时的浅蓝色背景
+          border-color: #2196f3; // 选中时的蓝色边框
+        }
+        
         .file-name {
           flex: 1;
           font-size: 24px; // 文件名字体大小
@@ -182,6 +232,14 @@
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+        
+        .file-duration {
+          font-size: 20px; // 时长字体大小
+          color: #666;
+          margin: 0 10px; // 与时长信息的间距
+          min-width: 60px; // 确保时长区域有最小宽度
+          text-align: right; // 右对齐
         }
         
         .play-btn {
@@ -201,6 +259,13 @@
             background-color: #d32f2f; // 按下时的效果
           }
         }
+      }
+      
+      .empty-file-list {
+        padding: 20px;
+        text-align: center;
+        color: #999;
+        font-size: 24px;
       }
     }
   }
