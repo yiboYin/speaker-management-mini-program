@@ -129,6 +129,32 @@ const SettingPage: React.FC = () => {
     console.log(`发送LED内容: ${ledText}`);
     // 这里可以添加发送LED内容的实际功能逻辑
   };
+  
+  const handlePlayFile = (e: any, fileIndex: number) => {
+    e.stopPropagation(); // 阻止冒泡，避免影响选中状态
+    console.log(`试听第${fileIndex}个文件`);
+    
+    // 发送试听指令，假设指令格式为 '7E 04 41 00 [文件索引] EF'
+    const command = `7E 04 41 00 ${fileIndex.toString(16).padStart(2, '0')} EF`;
+    
+    sendCommandToDevice(command, (data) => {
+      // 处理试听操作的返回数据
+      console.log(`试听第${fileIndex}个文件返回数据:`, data);
+    }).then(() => {
+      Taro.showToast({
+        title: '试听指令发送成功',
+        icon: 'success',
+        duration: 2000
+      });
+    }).catch((error) => {
+      console.error('试听指令发送失败:', error);
+      Taro.showToast({
+        title: '试听指令发送失败',
+        icon: 'none',
+        duration: 2000
+      });
+    });
+  };
 
   const handleReadFile = () => {
     // 已连接设备，向设备发送指令
@@ -221,7 +247,7 @@ const SettingPage: React.FC = () => {
         </View>
         <View className="file-list-container">
           {fileList.length > 0 ? (
-            fileList.map(file => (
+            fileList.map((file, index) => (
               <View 
                 className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`} 
                 key={file.id}
@@ -230,10 +256,7 @@ const SettingPage: React.FC = () => {
                 <View className="file-name">{file.name}</View>
                 <Button 
                   className="play-btn"
-                  onClick={(e) => {
-                    e.stopPropagation(); // 阻止冒泡，避免影响选中状态
-                    console.log(`试听${file.name}`);
-                  }}
+                  onClick={(e) => handlePlayFile(e, index + 1)}
                 >
                   试听
                 </Button>
