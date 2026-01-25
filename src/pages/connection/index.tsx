@@ -4,31 +4,80 @@ import Taro, { useReachBottom, getStorageSync } from '@tarojs/taro'
 import Loading from '@/components/Loading'
 import { saveConnectedDevice, clearConnectedDevice } from '@/utils/deviceUtils';
 import { Device } from '@/types/device';
+import { getDeviceId, setDeviceId, getFilterDeviceName, setFilterDeviceName, getFilterServiceUUID, setFilterServiceUUID, getNotifyUUID, setNotifyUUID, getWriteUUID, setWriteUUID, getServiceUUID, setServiceUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
 const ConnectionPage: React.FC = () => {
   const [showLoading, setShowLoading] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<Device | null>(null);
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
-
-  
-  // 初始化蓝牙模块
-  useEffect(() => {
+  const [bluetoothInitialized, setBluetoothInitialized] = useState(false);
+  const initBluetoothAdapter = (callback?: () => void) => {
     Taro.openBluetoothAdapter({
       success: (res) => {
         console.log('蓝牙模块初始化成功:', res);
+        // 设置蓝牙已初始化状态
+        setBluetoothInitialized(true);
+        // 蓝牙模块初始化成功后，执行回调
+        if (callback) {
+          callback();
+        }
       },
       fail: (err) => {
         console.error('蓝牙模块初始化失败:', err);
+        // 如果初始化失败，提示用户
+        Taro.showToast({
+          title: '蓝牙初始化失败，请检查蓝牙设置',
+          icon: 'none',
+          duration: 2000
+        });
       }
     });
-    
-    // 页面加载时尝试从缓存中恢复已连接的设备信息
-    const cachedDevice = getStorageSync('connectedDevice') as Device | undefined;
-    if (cachedDevice) {
-      setCurrentDevice(cachedDevice);
+  };
+  
+  const initBluetooth = (callback?: () => void) => {
+    // 检查是否已经初始化过
+    if (bluetoothInitialized) {
+      // 如果已经初始化，先关闭蓝牙适配器，再重新初始化
+      Taro.closeBluetoothAdapter({
+        success: () => {
+          console.log('蓝牙适配器关闭成功');
+          // 关闭完成后，重新初始化蓝牙适配器
+          initBluetoothAdapter(callback);
+        },
+        fail: (err) => {
+          console.error('蓝牙适配器关闭失败:', err);
+          // 关闭失败也尝试重新初始化
+          initBluetoothAdapter(callback);
+        }
+      });
+    } else {
+      // 如果尚未初始化，直接打开蓝牙适配器
+      initBluetoothAdapter(callback);
     }
-  }, []);
+  };
+  
+  // 页面卸载时的清理函数
+  useEffect(() => {
+    return () => {
+      // 如果有当前连接的设备，断开连接
+      if (currentDevice && currentDevice.deviceId) {
+        Taro.closeBLEConnection({
+          deviceId: currentDevice.deviceId,
+          success: () => {
+            console.log('页面关闭时断开设备连接成功:', currentDevice.name);
+            // 清除缓存中的设备信息
+            clearConnectedDevice();
+          },
+          fail: (err) => {
+            console.error('页面关闭时断开设备连接失败:', err);
+          }
+        });
+      }
+      // 重置蓝牙初始化状态
+      setBluetoothInitialized(false);
+    };
+  }, [currentDevice]);
   
   useReachBottom(() => {
     console.log('reach connection page bottom')
@@ -54,8 +103,11 @@ const ConnectionPage: React.FC = () => {
           Taro.authorize({
             scope: 'scope.bluetooth',
             success: () => {
-              // 权限获取成功后，开始搜索设备
-              startDeviceDiscovery();
+              // 权限获取成功后，初始化蓝牙模块
+              initBluetooth(() => {
+                // 蓝牙模块初始化成功后，开始搜索设备
+                startDeviceDiscovery();
+              });
             },
             fail: () => {
               console.log('用户拒绝授权');
@@ -63,8 +115,11 @@ const ConnectionPage: React.FC = () => {
             }
           });
         } else {
-          // 已经有权限，直接开始搜索设备
-          startDeviceDiscovery();
+          // 已经有权限，先初始化蓝牙模块
+          initBluetooth(() => {
+            // 蓝牙模块初始化成功后，开始搜索设备
+            startDeviceDiscovery();
+          });
         }
       },
       fail: (err) => {
@@ -138,6 +193,99 @@ const ConnectionPage: React.FC = () => {
     };
   };
   
+    // 获取设备服务和特征值信息并更新全局变量
+  const getDeviceServicesAndCharacteristics = (device: Device) => {
+    // 获取设备的所有服务
+    Taro.getBLEDeviceServices({
+      deviceId: device.deviceId,
+      success: (servicesRes) => {
+        console.log('获取设备服务成功:', servicesRes);
+        
+        // 过滤出非系统服务（通常系统服务以 000018 开头）
+        const nonSystemServices = servicesRes.services.filter(service => 
+          !service.uuid.startsWith('000018')
+        );
+        
+        if (nonSystemServices.length > 0) {
+          const firstNonSystemService = nonSystemServices[0];
+          
+          // 获取该服务的所有特征值
+          Taro.getBLEDeviceCharacteristics({
+            deviceId: device.deviceId,
+            serviceId: firstNonSystemService.uuid,
+            success: (characteristicsRes) => {
+              console.log('获取服务特征值成功:', characteristicsRes);
+              
+              // 查找具有写权限和通知权限的特征值
+              const writeCharacteristic = characteristicsRes.characteristics.find(char => 
+                char.properties.write
+              );
+              
+              const notifyCharacteristic = characteristicsRes.characteristics.find(char => 
+                char.properties.notify || char.properties.indicate
+              );
+              
+              // 更新全局变量
+              setServiceUUID(nonSystemServices.map(service => service.uuid));
+              if (writeCharacteristic) {
+                setWriteUUID(writeCharacteristic.uuid);
+              }
+              if (notifyCharacteristic) {
+                setNotifyUUID(notifyCharacteristic.uuid);
+                
+                // 启用特征值变化监听
+                Taro.notifyBLECharacteristicValueChange({
+                  deviceId: device.deviceId,
+                  serviceId: firstNonSystemService.uuid,
+                  characteristicId: notifyCharacteristic.uuid,
+                  state: true, // 启用通知
+                  success: (notifyResult) => {
+                    console.log('启用notify监听成功:', notifyResult);
+                  },
+                  fail: (error) => {
+                    console.error('启用notify监听失败:', error);
+                  }
+                });
+              }
+              setFilterServiceUUID(firstNonSystemService.uuid);
+              setFilterDeviceName(device.name || device.localName || '');
+              setDeviceId(device.deviceId);
+              
+              console.log('已更新蓝牙配置:', {
+                serviceUUID: nonSystemServices.map(service => service.uuid),
+                writeUUID: writeCharacteristic ? writeCharacteristic.uuid : '',
+                notifyUUID: notifyCharacteristic ? notifyCharacteristic.uuid : '',
+                filterServiceUUID: firstNonSystemService.uuid,
+                filterDeviceName: device.name || device.localName || '',
+                deviceId: device.deviceId
+              });
+            },
+            fail: (charErr) => {
+              console.error('获取服务特征值失败:', charErr);
+              
+              // 即使获取特征值失败，也要更新基础服务信息
+              setServiceUUID(nonSystemServices.map(service => service.uuid));
+              setFilterServiceUUID(firstNonSystemService.uuid);
+              setFilterDeviceName(device.name || device.localName || '');
+              setDeviceId(device.deviceId);
+            }
+          });
+        } else {
+          // 如果没有找到非系统服务，使用第一个服务
+          if (servicesRes.services.length > 0) {
+            const firstService = servicesRes.services[0];
+            setFilterServiceUUID(firstService.uuid);
+            setFilterDeviceName(device.name || device.localName || '');
+            setDeviceId(device.deviceId);
+          }
+        }
+      },
+      fail: (servicesErr) => {
+        console.error('获取设备服务失败:', servicesErr);
+      }
+    });
+  };
+  
   // 连接指定设备
   const connectToDevice = (device: Device) => {
     setShowLoading(true);
@@ -166,6 +314,9 @@ const ConnectionPage: React.FC = () => {
         
         // 清空可用设备列表
         setAvailableDevices([]);
+        
+        // 获取设备的服务和特征值信息
+        getDeviceServicesAndCharacteristics(device);
       },
       fail: (err) => {
         console.error('连接设备失败:', err);
@@ -183,6 +334,9 @@ const ConnectionPage: React.FC = () => {
               setCurrentDevice(connectedDevice);
               
               setAvailableDevices([]);
+              
+              // 重连成功后同样获取服务信息
+              getDeviceServicesAndCharacteristics(device);
             },
             fail: (err) => {
               console.error('重连设备也失败:', err);

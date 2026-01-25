@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import Taro from '@tarojs/taro';
 import { View, Button, Input } from '@tarojs/components';
-import { arrayBufferToHex, getConnectedDevice } from '@/utils/deviceUtils'; // 导入获取连接设备的函数
+import { ab2hex, hexCharCodeToStr, getConnectedDevice, hexStringToArrayBuffer, listenToDeviceData, writeCommandToDevice, sendCommandToDevice } from '@/utils/deviceUtils'; // 导入获取连接设备的函数和十六进制转换函数
 import { Device } from '@/types/device';
+import { getDeviceId, getServiceUUID, getWriteUUID, getNotifyUUID, getFilterServiceUUID } from '@/utils/bluetoothConfig';
 import './index.scss';
 
 const SettingPage: React.FC = () => {
@@ -33,151 +34,149 @@ const SettingPage: React.FC = () => {
   
 
 
-  // 发送指令到设备的辅助函数
-  const sendCommandToDevice = async (deviceId: string, command: string) => {
-    try {
-      // 获取设备的所有服务
-      const services = await Taro.getBLEDeviceServices({
-        deviceId
-      });
-      console.log('设备所有服务:', services);
+  
+  
+  
+  
+
+  
+  const handleButtonClick = (action: string) => {
+    console.log(`执行操作: ${action}`);
+    
+    // 根据不同的操作发送相应的指令
+    let command = '';
+    switch(action) {
+      case 'factoryReset':
+        command = '7E 02 16 EF'; // 恢复出厂设置指令
+        break;
+      case 'powerToggle':
+        command = '7E 02 82 EF'; // 开关机指令
+        break;
+      case 'lightMode':
+        command = '7E 01 02 00 01 EF'; // 灯模式指令
+        break;
+      case 'schedule':
+        command = '7E 02 84 EF'; // 定时指令
+        break;
+      case 'powerPlay':
+        command = '7E 02 22 EF'; // 上电播放指令
+        break;
+      case 'timeLoop':
+        command = '7E 03 15 00 EF'; // 到点循环指令
+        break;
+      case 'previous':
+        command = '7E 02 85 EF'; // 上一首指令
+        break;
+      case 'playPause':
+        command = '7E 02 83 EF'; // 播放/停止指令
+        break;
+      case 'next':
+        command = '7E 02 86 EF'; // 下一首指令
+        break;
+      case 'volumeUp':
+        command = '7E 02 80 EF'; // 音量加指令
+        break;
+      case 'volumeDown':
+        command = '7E 02 81 EF'; // 音量减指令
+        break;
+      default:
+        console.log(`未知操作: ${action}`);
+        return;
+    }
+    
+    // 发送指令到设备
+    sendCommandToDevice(command, (data) => {
+      // 处理接收到的数据
+      console.log(`${action}操作返回数据:`, data);
       
-      // 假设我们要找的服务UUID，实际开发中需要根据设备规格确定
-      let serviceId = '';
-      for (let i = 0; i < services.services.length; i++) {
-        const service = services.services[i];
-        // 这里可以根据特定的服务UUID进行筛选，示例中使用第一个非系统服务
-        if (!service.uuid.startsWith('000018')) { // 排除标准蓝牙服务
-          serviceId = service.uuid;
-          break;
-        }
-      }
-      
-      if (!serviceId) {
-        throw new Error('未找到合适的服务');
-      }
-      
-      // 获取服务下的特征值
-      const characteristics = await Taro.getBLEDeviceCharacteristics({
-        deviceId,
-        serviceId
-      });
-      
-      // 查看返回结果
-      console.log('设备特征值:', characteristics);
-      
-      // 查找支持notify和write的特征值
-      let notifyCharacteristicId = '';
-      let writeCharacteristicId = '';
-      
-      for (let i = 0; i < characteristics.characteristics.length; i++) {
-        const characteristic = characteristics.characteristics[i];
-        if (!notifyCharacteristicId && characteristic.properties.notify) { // 查找支持notify的特征值
-          notifyCharacteristicId = characteristic.uuid;
-        }
-        if (!writeCharacteristicId && (characteristic.properties.write || characteristic.properties.writeWithoutResponse)) { // 查找支持write的特征值
-          writeCharacteristicId = characteristic.uuid;
+      // 如果是读取文件列表的操作，根据返回数据更新文件列表
+      if (action === 'readFiles' && data.resValue && data.resValue.length >= 2) {
+        // 获取resValue数组倒数第二位的值，表示文件数量
+        const fileCountIndex = data.resValue.length - 2;
+        const fileCount = data.resValue[fileCountIndex];
+        
+        console.log(`检测到设备上有 ${fileCount} 个文件`);
+        
+        // 创建fileList，文件名为“音频x”
+        const newFileList = [];
+        for (let i = 1; i <= fileCount; i++) {
+          newFileList.push({
+            id: `audio_${i}`,
+            name: `音频${i}`
+          });
         }
         
-        // 如果找到了所需的两种特征值，则退出循环
-        if (notifyCharacteristicId && writeCharacteristicId) {
-          break;
-        }
+        setFileList(newFileList);
+        console.log('更新后的文件列表:', newFileList);
       }
-      
-      if (!notifyCharacteristicId) {
-        throw new Error('未找到支持notify的特征值');
-      }
-      
-      // 启用特征值变化监听
-      const notifyResult = await Taro.notifyBLECharacteristicValueChange({
-        deviceId,
-        serviceId,
-        characteristicId: notifyCharacteristicId,
-        state: true, // 启用通知
-      });
-      
-      console.log('notifyBLECharacteristicValueChange回调结果:', notifyResult);
-      
-      
-      // 如果找到了支持write的特征值，则向它写入数据
-      if (writeCharacteristicId) {
-        try {
-          // 将指令转换为ArrayBuffer
-          const buffer = hexStringToArrayBuffer('7E 19 02 EF');
-          console.log('将指令转换为ArrayBuffer:', buffer);
-          // 向特征值写入数据
-          await Taro.writeBLECharacteristicValue({
-            deviceId,
-            serviceId,
-            characteristicId: writeCharacteristicId,
-            value: buffer,
-          });
-          
-          console.log('成功向特征值写入数据: 7E 19 02 EF');
-        } catch (error) {
-          console.error('写入特征值失败:', error);
-        }
-      }
-      
-      // 监听特征值变化
-      Taro.onBLECharacteristicValueChange((result) => {
-        console.log('特征值变化:', result);
-        // 处理从设备接收到的数据
-        if (result.deviceId === deviceId && result.serviceId === serviceId && result.characteristicId === notifyCharacteristicId) {
-          console.log('收到设备数据:', result.value);
-          let hex = arrayBufferToHex(result.value).toUpperCase();
-          console.log(hex);
-        }
-      });
+    }).then(() => {
       Taro.showToast({
         title: '指令发送成功',
         icon: 'success',
         duration: 2000
       });
-    } catch (error) {
+    }).catch((error) => {
       console.error('发送指令失败:', error);
       Taro.showToast({
         title: '发送指令失败',
         icon: 'none',
         duration: 2000
       });
-    }
-  };
-  
-  // 将十六进制字符串转换为ArrayBuffer
-  const hexStringToArrayBuffer = (hexString: string): ArrayBuffer => {
-    // 移除空格并按空格分割十六进制字符串
-    const hexValues = hexString.replace(/\s+/g, ' ').trim().split(' ');
-    
-    // 创建字节数组
-    const bytes = new Uint8Array(hexValues.length);
-    
-    // 将每个十六进制值转换为字节
-    hexValues.forEach((hex, index) => {
-      bytes[index] = parseInt(hex, 16);
     });
-    
-    // 返回ArrayBuffer
-    return bytes.buffer;
-  };
-  
-  // 在组件挂载时获取当前连接的设备
-  useEffect(() => {
-    const device = getConnectedDevice();
-    
-    console.log('当前连接的设备:', device);
-  }, []);
-  
-  const handleButtonClick = (action: string) => {
-    console.log(`执行操作: ${action}`);
-    // 这里可以添加实际的功能逻辑
   };
   
   const handleSendLed = () => {
     console.log(`发送LED内容: ${ledText}`);
     // 这里可以添加发送LED内容的实际功能逻辑
   };
+
+  const handleReadFile = () => {
+    // 已连接设备，向设备发送指令
+    console.log('已连接设备，发送指令: 7E 02 19 EF');
+    
+    // 发送指令到设备
+    sendCommandToDevice('7E 02 19 EF', (data) => {
+      // 处理接收到的数据
+      console.log('从设备接收到数据:', data);
+      
+      // 检查是否有resValue数据
+      if (data.resValue && data.resValue.length >= 2) {
+        // 获取resValue数组倒数第二位的值，表示文件数量
+        const fileCountIndex = data.resValue.length - 2;
+        const fileCount = data.resValue[fileCountIndex];
+        
+        console.log(`检测到设备上有 ${fileCount} 个文件`);
+        
+        // 创建fileList，文件名为“音频x”
+        const newFileList = [];
+        for (let i = 1; i <= fileCount; i++) {
+          newFileList.push({
+            id: `audio_${i}`,
+            name: `音频${i}`
+          });
+        }
+        
+        setFileList(newFileList);
+        console.log('更新后的文件列表:', newFileList);
+      }
+    }).then(() => {
+      Taro.showToast({
+        title: '指令发送成功',
+        icon: 'success',
+        duration: 2000
+      });
+    }).catch((error) => {
+      console.error('发送指令失败:', error);
+      Taro.showToast({
+        title: '发送指令失败',
+        icon: 'none',
+        duration: 2000
+      });
+    });
+    
+    // 模拟读取文件
+    console.log('读取文件');
+  }
 
   return (
     <View className="setting-page">
@@ -215,30 +214,7 @@ const SettingPage: React.FC = () => {
           <View className="section-title">文件列表</View>
           <Button 
             className="read-file-btn"
-            onClick={() => {
-              // 首先检查是否已连接设备
-              const device = getConnectedDevice();
-              if (!device) {
-                // 未连接设备，提示用户
-                Taro.showToast({
-                  title: '请先连接设备',
-                  icon: 'none',
-                  duration: 2000
-                });
-                return;
-              }
-              
-              // 已连接设备，向设备发送指令
-              console.log('已连接设备，发送指令: 7E 04 20 00 04 EF');
-              
-              // 发送指令到设备
-              sendCommandToDevice(device.deviceId, '7E 04 20 00 04 EF');
-              
-              // 模拟读取文件
-              console.log('读取文件');
-              
-
-            }}
+            onClick={handleReadFile}
           >
             读取文件
           </Button>
@@ -252,7 +228,6 @@ const SettingPage: React.FC = () => {
                 onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
               >
                 <View className="file-name">{file.name}</View>
-                <View className="file-duration">{file.duration}</View>
                 <Button 
                   className="play-btn"
                   onClick={(e) => {
