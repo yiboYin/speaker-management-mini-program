@@ -237,6 +237,14 @@ export const sendCommandToDevice = async (
 
 // 写入数据到蓝牙设备的辅助函数
 export const writeCommandToDevice = async (command: string, deviceId: string, serviceUUID: string, writeUUID: string): Promise<boolean> => {
+  // 如果命令长度超过20字节，则使用分包发送
+  const buffer = hexStringToArrayBuffer(command);
+  if (buffer.byteLength > 20) {
+    return writeCommandToDeviceWithSplit(buffer, deviceId, serviceUUID, writeUUID);
+  }
+  
+  // 否则使用原方法发送
+
   if (!deviceId) {
     throw new Error('未找到已连接的设备ID');
   }
@@ -251,7 +259,7 @@ export const writeCommandToDevice = async (command: string, deviceId: string, se
   
   try {
     // 将指令转换为ArrayBuffer
-    const buffer = hexStringToArrayBuffer(command);
+    // const buffer = hexStringToArrayBuffer(command);
     console.log('将指令转换为ArrayBuffer:', buffer);
     // 将十六进制转换为ASCII字符串
     let tempHexStr = ab2hex(buffer).toUpperCase();
@@ -278,6 +286,92 @@ export const writeCommandToDevice = async (command: string, deviceId: string, se
     return true;
   } catch (error) {
     console.error('写入特征值失败:', error);
+    return false;
+  }
+};
+
+// 分包发送大于20字节的数据
+export const writeCommandToDeviceWithSplit = async (
+  buffer: ArrayBuffer, 
+  deviceId: string, 
+  serviceUUID: string, 
+  writeUUID: string,
+  delayMs: number = 20
+): Promise<boolean> => {
+  if (!deviceId) {
+    throw new Error('未找到已连接的设备ID');
+  }
+  
+  if (!serviceUUID) {
+    throw new Error('未找到服务UUID');
+  }
+  
+  if (!writeUUID) {
+    throw new Error('未找到写特征UUID');
+  }
+  
+  try {
+    const bytes = new Uint8Array(buffer);
+    const packetSize = 20; // BLE 4.0 最大20字节
+    const totalPackets = Math.ceil(bytes.length / packetSize);
+    
+    console.log(`准备分包发送数据，总大小: ${bytes.length} 字节，共 ${totalPackets} 个数据包`);
+    
+    // iOS 和 Android 系统处理方式不同
+    const isIOS = Taro.getSystemInfoSync().platform === 'ios';
+    
+    for (let i = 0; i < totalPackets; i++) {
+      const start = i * packetSize;
+      const end = Math.min(start + packetSize, bytes.length);
+      const packet = bytes.slice(start, end);
+      
+      // 创建当前数据包的 ArrayBuffer
+      const packetBuffer = packet.buffer;
+      
+      let success = false;
+      let attemptCount = 0;
+      const maxAttempts = 3; // 最多重试3次
+      
+      while (!success && attemptCount < maxAttempts) {
+        attemptCount++;
+        
+        try {
+          await Taro.writeBLECharacteristicValue({
+            deviceId,
+            serviceId: serviceUUID,
+            characteristicId: writeUUID,
+            value: packetBuffer
+          });
+          
+          console.log(`第 ${i + 1}/${totalPackets} 个数据包发送成功`);
+          success = true;
+          
+          // 如果是iOS系统，不需要延迟；如果是Android系统，需要延迟
+          if (!isIOS && i < totalPackets - 1) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        } catch (error) {
+          console.warn(`第 ${i + 1}/${totalPackets} 个数据包发送失败 (尝试 ${attemptCount}/${maxAttempts})`, error);
+          
+          // 如果不是最后一次尝试，等待后重试
+          if (attemptCount < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          } else {
+            console.error(`第 ${i + 1}/${totalPackets} 个数据包发送失败，已达到最大重试次数`);
+            throw error;
+          }
+        }
+      }
+      
+      if (!success) {
+        throw new Error(`第 ${i + 1}/${totalPackets} 个数据包发送失败`);
+      }
+    }
+    
+    console.log('所有数据包发送完成');
+    return true;
+  } catch (error) {
+    console.error('分包发送数据失败:', error);
     return false;
   }
 };
