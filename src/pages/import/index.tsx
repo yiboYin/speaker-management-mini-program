@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
-import { sendCommandToDevice, getConnectedDevice, hexStringToArrayBuffer } from '@/utils/deviceUtils';
+import { sendCommandToDevice, getConnectedDevice, hexStringToArrayBuffer, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
 import { getDeviceId, getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
@@ -229,86 +229,134 @@ const ImportPage: React.FC = () => {
       title: `正在发送 ${selectedFile.name} 到设备...`
     });
       
-      // 这里需要根据实际的蓝牙传输协议来实现文件发送
-      // 一般步骤是:
-      // 1. 将文件内容转换为适合蓝牙传输的数据包
-      // 2. 分包发送（如果文件较大）
-      // 3. 发送完成通知
+    // 尝试读取文件的二进制内容
+    let fileContentArrayBuffer: ArrayBuffer | null = null;
+    
+    try {
+      // 尝试使用Taro的文件系统管理器读取文件
+      const fs = Taro.getFileSystemManager?.();
       
-      // 由于直接传输文件内容可能涉及复杂的数据处理，
-      // 我们可以先发送一个代表该文件的指令
-      // 假设发送文件的指令格式为: '7E 02 10 [文件名长度] [文件名的ASCII码] EF'
+      if (fs && selectedFile.path) {
+        // 读取文件内容（二进制）
+        const filePath = selectedFile.path;
+        fileContentArrayBuffer = fs.readFileSync(filePath);
+      }
+    } catch (readError) {
+      console.warn('读取文件内容失败:', readError);
       
-      // 为简单起见，这里先发送一个示例指令，实际应用中需要根据具体协议实现
+      // 如果无法读取文件内容，使用文件名作为标识
+      const encoder = new TextEncoder();
+      fileContentArrayBuffer = encoder.encode(selectedFile.name);
+    }
+    
+    try {
+      // 第一步：发送开始指令
+      console.log('发送开始指令: 7E 02 33 EF');
+      await sendCommandToDevice('7E 02 33 EF', (data) => {
+        console.log('开始指令响应:', data);
+      });
       
-      // 尝试读取文件的二进制内容
-      let fileContentHex = '';
-      try {
-        // 在小程序环境中，尝试使用Taro的文件系统API读取文件
-        // 注意：由于安全限制，可能无法直接读取临时文件
-        if (selectedFile.path) {
-          // 尝试使用Taro的文件系统管理器
-          const fs = Taro.getFileSystemManager();
-          
-          // 读取文件内容（二进制）
-          const filePath = selectedFile.path;
-          const buffer = fs.readFileSync(filePath, 'binary');
-          
-          // 将二进制数据转换为十六进制字符串
-          fileContentHex = bufferToHex(buffer);
-        }
-      } catch (readError) {
-        console.warn('读取文件内容失败:', readError);
-        // 如果读取失败，回退到使用文件路径
-        fileContentHex = convertStringToHex(selectedFile.path || selectedFile.name);
+      // 第二步：发送文件信息
+      // 格式: 7E 02 34 [ID长度] [ID] [大小] EF
+      
+      // 使用文件名的哈希值或部分作为文件ID
+      const fileId = generateFileId(selectedFile.name);
+      const encoder = new TextEncoder();
+      const idBytes = encoder.encode(fileId);
+      const idLength = idBytes.length;
+      
+      // 文件大小（字节）转换为KB
+      const fileSizeInKB = Math.ceil((selectedFile.size || 0) / 1024);
+      const sizeBytes = [
+        (fileSizeInKB >> 24) & 0xFF,
+        (fileSizeInKB >> 16) & 0xFF,
+        (fileSizeInKB >> 8) & 0xFF,
+        fileSizeInKB & 0xFF
+      ];
+      
+      const fileInfoCommand = [
+        '7E',
+        '02',
+        '34',
+        idLength.toString(16).padStart(2, '0'),
+        ...Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')),
+        ...sizeBytes.map(b => b.toString(16).padStart(2, '0')),
+        'EF'
+      ].join(' ');
+      
+      console.log('发送文件信息:', fileInfoCommand);
+      await sendCommandToDevice(fileInfoCommand, (data) => {
+        console.log('文件信息响应:', data);
+      });
+      
+      // 第三步：发送文件内容（分包发送）
+      if (fileContentArrayBuffer) {
+        console.log(`发送文件内容，总大小: ${fileContentArrayBuffer.byteLength} 字节`);
+        
+        // 使用writeCommandToDeviceWithSplit方法分包发送
+        await writeCommandToDeviceWithSplit(fileContentArrayBuffer);
+        
+        console.log('文件内容分包发送完成');
       }
       
-      // 分三步发送指令：
-      // 1. 发送开始指令: 7E 02 33 EF
-      // 2. 发送文件内容
-      // 3. 发送结束指令: 7E 02 34 EF
-      
-      try {
-        // 第一步：发送开始指令
-        console.log('发送开始指令: 7E 02 33 EF');
-        await sendCommandToDevice('7E 02 33 EF', (data) => {
-          console.log('开始指令响应:', data);
-        });
+      // 第四步：发送结束指令
+      console.log('发送结束指令: 7E 02 35 EF');
+      await sendCommandToDevice('7E 02 35 EF', (data) => {
+        console.log('结束指令响应:', data);
         
-        // 第二步：发送文件内容
-        console.log(`发送文件内容，长度: ${fileContentHex.split(' ').length} 字节`);
-        await sendCommandToDevice(fileContentHex, (data) => {
-          console.log('文件内容响应:', data);
-        });
-        
-        // 第三步：发送结束指令
-        console.log('发送结束指令: 7E 02 34 EF');
-        await sendCommandToDevice('7E 02 34 EF', (data) => {
-          console.log('结束指令响应:', data);
+        // 检查设备是否成功接收文件
+        if (data && data.resValue && data.resValue.length >= 4) {
+          const responseCmd = data.resValue[1]; // 应答命令码
+          const result = data.resValue[3]; // 结果 01=成功, 00=失败
           
-          // 检查设备是否成功接收文件
-          if (data && data.hex && data.hex.includes('ACK')) {
+          if (responseCmd === 0x36 && result === 0x01) {
             Taro.hideLoading();
             Taro.showToast({
               title: '文件发送成功',
               icon: 'success',
               duration: 2000
             });
+          } else {
+            Taro.hideLoading();
+            Taro.showToast({
+              title: '文件发送失败',
+              icon: 'none',
+              duration: 2000
+            });
           }
-        });
-      } catch (error) {
-        console.error('发送文件过程出错:', error);
-        Taro.hideLoading();
-        Taro.showToast({
-          title: '文件发送失败',
-          icon: 'none',
-          duration: 2000
-        });
-        throw error;
-      }
-      
-      console.log(`文件 ${selectedFile.name} 发送指令已发出`);
+        } else {
+          Taro.hideLoading();
+          Taro.showToast({
+            title: '文件发送失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      });
+    } catch (error) {
+      console.error('发送文件过程出错:', error);
+      Taro.hideLoading();
+      Taro.showToast({
+        title: '文件发送失败',
+        icon: 'none',
+        duration: 2000
+      });
+      throw error;
+    }
     
+    console.log(`文件 ${selectedFile.name} 发送完成`);
+  };
+  
+  // 辅助函数：生成文件ID
+  const generateFileId = (fileName: string): string => {
+    // 简单的哈希函数来生成ID
+    let hash = 0;
+    for (let i = 0; i < fileName.length; i++) {
+      const char = fileName.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // 转换为32位整数
+    }
+    return Math.abs(hash).toString();
   };
   
   // 辅助函数：将字符串转换为十六进制
