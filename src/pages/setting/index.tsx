@@ -26,7 +26,7 @@ const SettingPage: React.FC = () => {
       console.log('初始设备状态返回数据:', data);
       
       // 解析设备状态返回数据
-      // 返回格式: 7E 02 11 [状态字节] EF
+      // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
       if (data.resValue && data.resValue.length >= 6) {
         // 状态字节格式：[开关机][定时][上电播放][到点循环]
         const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
@@ -74,15 +74,15 @@ const SettingPage: React.FC = () => {
     let command = '';
     switch(action) {
       case 'factoryReset':
-        command = '7E 02 01 EF'; // 恢复出厂设置指令
+        command = '7E 04 01 02 01'; // 恢复出厂设置指令
         break;
       case 'powerToggle':
         // 先获取设备状态，然后切换开关机状态
-        sendCommandToDevice('7E 02 10 EF', (data) => {
+        sendCommandToDevice('7E 03 01 02 10', (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
-          // 返回格式: 7E 02 11 [状态字节] EF
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
           if (data.resValue && data.resValue.length >= 6) {
             // 状态字节格式：[开关机][定时][上电播放][到点循环]
             const powerStatus = data.resValue[2]; // 开关机状态在第3个字节
@@ -90,10 +90,10 @@ const SettingPage: React.FC = () => {
             // 根据当前开关机状态切换
             if (powerStatus === 0x00) {
               // 当前为关机状态，发送开机指令
-              command = '7E 02 02 01 EF';
+              command = '7E 05 01 02 02 01';
             } else {
               // 当前为开机状态，发送关机指令
-              command = '7E 02 02 00 EF';
+              command = '7E 05 01 02 02 00';
             }
             
             sendCommandToDevice(command, (data) => {
@@ -133,15 +133,15 @@ const SettingPage: React.FC = () => {
         // 灯模式循环：1 -> 2 -> 3 -> 1...
         // 由于当前没有存储灯模式的状态，暂时使用随机模式
         const randomMode = Math.floor(Math.random() * 3) + 1; // 1, 2, 或 3
-        command = `7E 02 03 0${randomMode} EF`; // 灯模式指令
+        command = `7E 05 01 02 03 0${randomMode}`; // 灯模式指令
         break;
       case 'schedule':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 02 10 EF', (data) => {
+        sendCommandToDevice('7E 03 01 02 10', (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
-          // 返回格式: 7E 02 11 [状态字节] EF
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
           if (data.resValue && data.resValue.length >= 6) {
             // 状态字节格式：[开关机][定时][上电播放][到点循环]
             const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
@@ -149,11 +149,11 @@ const SettingPage: React.FC = () => {
             // 根据当前定时状态切换
             if (scheduleStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 02 04 01 EF';
+              command = '7E 05 01 02 04 01';
               setScheduleEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 02 04 00 EF';
+              command = '7E 05 01 02 04 00';
               setScheduleEnabled(false); // 更新本地状态
             }
             
@@ -192,11 +192,11 @@ const SettingPage: React.FC = () => {
         return; // 返回，避免后续执行
       case 'powerPlay':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 02 10 EF', (data) => {
+        sendCommandToDevice('7E 03 01 02 10', (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
-          // 返回格式: 7E 02 11 [状态字节] EF
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
           if (data.resValue && data.resValue.length >= 6) {
             // 状态字节格式：[开关机][定时][上电播放][到点循环]
             const powerPlayStatus = data.resValue[4]; // 上电播放状态在第5个字节
@@ -204,11 +204,11 @@ const SettingPage: React.FC = () => {
             // 根据当前上电播放状态切换
             if (powerPlayStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 02 05 01 EF';
+              command = '7E 05 01 02 05 01';
               setPowerPlayEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 02 05 00 EF';
+              command = '7E 05 01 02 05 00';
               setPowerPlayEnabled(false); // 更新本地状态
             }
             
@@ -247,11 +247,11 @@ const SettingPage: React.FC = () => {
         return; // 返回，避免后续执行
       case 'timeLoop':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 02 10 EF', (data) => {
+        sendCommandToDevice('7E 03 01 02 10', (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
-          // 返回格式: 7E 02 11 [状态字节] EF
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
           if (data.resValue && data.resValue.length >= 6) {
             // 状态字节格式：[开关机][定时][上电播放][到点循环]
             const timeLoopStatus = data.resValue[5]; // 到点循环状态在第6个字节
@@ -259,11 +259,11 @@ const SettingPage: React.FC = () => {
             // 根据当前到点循环状态切换
             if (timeLoopStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 02 06 01 EF';
+              command = '7E 05 01 02 06 01';
               setTimeLoopEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 02 06 00 EF';
+              command = '7E 05 01 02 06 00';
               setTimeLoopEnabled(false); // 更新本地状态
             }
             
@@ -301,19 +301,19 @@ const SettingPage: React.FC = () => {
         });
         return; // 返回，避免后续执行
       case 'previous':
-        command = '7E 02 07 EF'; // 上一首指令
+        command = '7E 03 01 02 07'; // 上一首指令
         break;
       case 'playPause':
-        command = '7E 02 08 EF'; // 播放/停止指令
+        command = '7E 03 01 02 08'; // 播放/停止指令
         break;
       case 'next':
-        command = '7E 02 09 EF'; // 下一首指令
+        command = '7E 03 01 02 09'; // 下一首指令
         break;
       case 'volumeUp':
-        command = '7E 02 0A EF'; // 音量加指令
+        command = '7E 03 01 02 0A'; // 音量加指令
         break;
       case 'volumeDown':
-        command = '7E 02 0B EF'; // 音量减指令
+        command = '7E 03 01 02 0B'; // 音量减指令
         break;
       default:
         console.log(`未知操作: ${action}`);
@@ -376,8 +376,12 @@ const SettingPage: React.FC = () => {
       .map(byte => byte.toString(16).padStart(2, '0'))
       .join(' ');
     
+    // 计算整体长度：命令码(02 20) + 方向(01) + 数据部分长度
+    const dataLength = 1 + textBytes.length; // 长度字节 + 文本字节数
+    const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
+    
     // 构造完整的LED发送指令
-    const command = `7E 02 20 ${lengthHex} ${textHex} EF`;
+    const command = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 20 ${lengthHex} ${textHex}`;
     
     // 发送指令到设备
     sendCommandToDevice(command, (data) => {
@@ -405,7 +409,7 @@ const SettingPage: React.FC = () => {
     
     // 播放指定文件，可能需要先发送选择文件的指令，再发送播放指令
     // 由于协议中未明确规定选择特定文件的指令，这里先发送播放/停止指令
-    const command = '7E 02 08 EF'; // 播放/停止指令
+    const command = '7E 03 01 02 08'; // 播放/停止指令
     
     sendCommandToDevice(command, (data) => {
       // 处理试听操作的返回数据
@@ -433,14 +437,14 @@ const SettingPage: React.FC = () => {
     // 从文件ID中提取数字部分作为文件ID
     const fileNumber = parseInt(fileId.replace('audio_', ''), 10);
     
-    // 构造删除文件指令: 7E 02 32 [文件ID] EF
-    const command = `7E 02 32 ${fileNumber.toString(16).padStart(2, '0')} EF`;
+    // 构造删除文件指令: 7E 04 01 02 32 [文件ID]
+    const command = `7E 04 01 02 32 ${fileNumber.toString(16).padStart(2, '0')}`;
     
     sendCommandToDevice(command, (data) => {
       // 处理删除文件操作的返回数据
       console.log(`删除文件返回数据:`, data);
       
-      // 根据协议规范，设备返回: 7E 02 33 01 EF (成功) 或 7E 02 33 00 EF (失败)
+      // 根据协议规范，设备返回: 7E [整体长度] 02 02 33 [结果] (成功/失败)
       if (data.resValue && data.resValue.length >= 4) {
         const responseCmd = data.resValue[1]; // 应答命令码
         const result = data.resValue[3]; // 结果 01=成功, 00=失败
@@ -482,60 +486,62 @@ const SettingPage: React.FC = () => {
     console.log('已连接设备，发送指令: 7E 02 30 EF');
       
     // 发送指令到设备
-    sendCommandToDevice('7E 02 30 EF', (data) => {
+    sendCommandToDevice('7E 03 01 02 30', (data) => {
       // 处理接收到的数据
       console.log('从设备接收到数据:', data);
         
-      // 根据协议规范解析返回数据
-      // 返回格式: 7E 02 31 [文件数量] [文件1信息] [文件2信息] ... EF
-      if (data.resValue && data.resValue.length > 0) {
-        // 第一个字节是命令码02，第二个字节是31（返回码），第三个字节是文件数量
-        if (data.resValue.length >= 3 && data.resValue[1] === 0x31) {
-          const fileCount = data.resValue[2];
-          console.log(`检测到设备上有 ${fileCount} 个文件`);
-            
-          // 解析每个文件的信息
-          const newFileList = [];
-          let currentIndex = 3; // 从第4个字节开始是文件信息
-            
-          for (let i = 0; i < fileCount; i++) {
-            if (currentIndex >= data.resValue.length) break;
+      // 解析设备返回的文件数据
+      // 新协议：逐个返回单个文件，最后发送结束指令
+      // 文件格式: 7E [整体长度] 02 02 31 [文件数据] 或 结束格式: 7E 03 02 02 32
+      if (data.resValue && data.resValue.length >= 3) {
+        const responseCmd = data.resValue[1]; // 响应命令码
               
-            // [文件ID][文件名长度][文件名][文件大小]
-            const fileId = data.resValue[currentIndex];
-            currentIndex++;
+        // 检查是否是结束指令
+        if (responseCmd === 0x32) {
+          // 收到结束指令，获取文件完成
+          console.log('文件列表获取完成');
+          return;
+        }
               
-            if (currentIndex >= data.resValue.length) break;
-              
+        // 检查是否是文件数据指令
+        if (responseCmd === 0x31 && data.resValue.length >= 4) {
+          // 解析单个文件数据格式: [文件ID][文件名长度][文件名][文件大小]
+          let currentIndex = 2; // 从第3个字节开始是文件数据
+                
+          const fileId = data.resValue[currentIndex];
+          currentIndex++;
+                
+          if (currentIndex < data.resValue.length) {
             const fileNameLength = data.resValue[currentIndex];
             currentIndex++;
-              
-            if (currentIndex + fileNameLength > data.resValue.length) break;
-              
-            // 提取文件名（UTF-8编码）
-            const fileNameBytes = data.resValue.slice(currentIndex, currentIndex + fileNameLength);
-            const decoder = new TextDecoder('utf-8');
-            const fileName = decoder.decode(new Uint8Array(fileNameBytes));
-            currentIndex += fileNameLength;
-              
-            if (currentIndex + 3 >= data.resValue.length) break;
-              
-            // 文件大小是4字节（大端序）
-            const fileSize = (data.resValue[currentIndex] << 24) |
-                             (data.resValue[currentIndex + 1] << 16) |
-                             (data.resValue[currentIndex + 2] << 8) |
-                             data.resValue[currentIndex + 3];
-            currentIndex += 4;
-              
-            newFileList.push({
-              id: `audio_${fileId}`,
-              name: fileName,
-              duration: `${fileSize}KB` // 使用文件大小作为时长显示
-            });
+                  
+            if (currentIndex + fileNameLength <= data.resValue.length) {
+              // 提取文件名（UTF-8编码）
+              const fileNameBytes = data.resValue.slice(currentIndex, currentIndex + fileNameLength);
+              const decoder = new TextDecoder('utf-8');
+              const fileName = decoder.decode(new Uint8Array(fileNameBytes));
+              currentIndex += fileNameLength;
+                    
+              if (currentIndex + 3 < data.resValue.length) {
+                // 文件大小是4字节（大端序）
+                const fileSize = (data.resValue[currentIndex] << 24) |
+                                 (data.resValue[currentIndex + 1] << 16) |
+                                 (data.resValue[currentIndex + 2] << 8) |
+                                 data.resValue[currentIndex + 3];
+                      
+                // 添加到现有文件列表
+                setFileList(prevList => {
+                  const newFileList = [...prevList, {
+                    id: `audio_${fileId}`,
+                    name: fileName,
+                    duration: `${fileSize}KB` // 使用文件大小作为时长显示
+                  }];
+                  console.log('获取到的文件:', newFileList);
+                  return newFileList;
+                });
+              }
+            }
           }
-            
-          setFileList(newFileList);
-          console.log('更新后的文件列表:', newFileList);
         }
       }
     }).then(() => {

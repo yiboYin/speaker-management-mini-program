@@ -250,14 +250,8 @@ const ImportPage: React.FC = () => {
     }
     
     try {
-      // 第一步：发送开始指令
-      console.log('发送开始指令: 7E 02 33 EF');
-      await sendCommandToDevice('7E 02 33 EF', (data) => {
-        console.log('开始指令响应:', data);
-      });
-      
-      // 第二步：发送文件信息
-      // 格式: 7E 02 34 [ID长度] [ID] [大小] EF
+      // 第一步：发送开始传输及文件信息指令
+      // 格式: 7E 02 33 [ID长度] [ID] [大小] EF
       
       // 使用文件名的哈希值或部分作为文件ID
       const fileId = generateFileId(selectedFile.name);
@@ -274,19 +268,24 @@ const ImportPage: React.FC = () => {
         fileSizeInKB & 0xFF
       ];
       
+      // 计算整体长度：命令码(02 33) + 方向(01) + 数据部分长度
+      const dataLength = 1 + idBytes.length + sizeBytes.length; // ID长度字节 + ID内容 + 大小字节
+      const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
+      
       const fileInfoCommand = [
         '7E',
-        '02',
-        '34',
+        totalLength.toString(16).padStart(2, '0'), // 整体长度
+        '01', // 方向：下行
+        '02', // 命令码
+        '33',
         idLength.toString(16).padStart(2, '0'),
         ...Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')),
-        ...sizeBytes.map(b => b.toString(16).padStart(2, '0')),
-        'EF'
+        ...sizeBytes.map(b => b.toString(16).padStart(2, '0'))
       ].join(' ');
       
-      console.log('发送文件信息:', fileInfoCommand);
+      console.log('发送开始传输及文件信息:', fileInfoCommand);
       await sendCommandToDevice(fileInfoCommand, (data) => {
-        console.log('文件信息响应:', data);
+        console.log('开始传输及文件信息响应:', data);
       });
       
       // 第三步：发送文件内容（分包发送）
@@ -300,14 +299,14 @@ const ImportPage: React.FC = () => {
       }
       
       // 第四步：发送结束指令
-      console.log('发送结束指令: 7E 02 35 EF');
-      await sendCommandToDevice('7E 02 35 EF', (data) => {
+      console.log('发送结束指令: 7E 03 01 02 35');
+      await sendCommandToDevice('7E 03 01 02 35', (data) => {
         console.log('结束指令响应:', data);
         
         // 检查设备是否成功接收文件
         if (data && data.resValue && data.resValue.length >= 4) {
           const responseCmd = data.resValue[1]; // 应答命令码
-          const result = data.resValue[3]; // 结果 01=成功, 00=失败
+          const result = data.resValue[data.resValue.length - 1]; // 结果 01=成功, 00=失败
           
           if (responseCmd === 0x36 && result === 0x01) {
             Taro.hideLoading();

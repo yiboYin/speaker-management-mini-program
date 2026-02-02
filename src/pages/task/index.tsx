@@ -113,93 +113,100 @@ const TaskPage: React.FC = () => {
   const fetchTasks = async () => {
     // 从设备获取定时任务列表
     try {
-      await sendCommandToDevice('7E 02 42 EF', (data) => {
+      await sendCommandToDevice('7E 03 01 02 42', (data) => {
         console.log('获取定时任务返回数据:', data);
         
         // 解析设备返回的任务数据
-        // 返回格式: 7E 02 43 [数量] [任务1] [任务2]... EF
+        // 新协议：逐个返回单个任务，最后发送结束指令
+        // 任务格式: 7E [整体长度] 02 02 42 [任务数据] 或 结束格式: 7E 03 02 02 43
         if (data.resValue && data.resValue.length >= 3) {
-          const taskCount = data.resValue[2]; // 任务数量在第3个字节
-          console.log(`检测到设备上有 ${taskCount} 个定时任务`);
+          const responseCmd = data.resValue[1]; // 响应命令码
           
-          const fetchedTasks: Task[] = [];
-          let currentIndex = 3; // 从第4个字节开始是任务信息
+          // 检查是否是结束指令
+          if (responseCmd === 0x43) {
+            // 收到结束指令，获取任务完成
+            console.log('定时任务获取完成');
+            return;
+          }
           
-          for (let i = 0; i < taskCount; i++) {
-            if (currentIndex >= data.resValue.length) break;
+          // 检查是否是任务数据指令
+          if (responseCmd === 0x42 && data.resValue.length >= 4) {
+            // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
+            let currentIndex = 2; // 从第3个字节开始是任务数据
             
-            // 解析任务数据格式: [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
             const idLength = data.resValue[currentIndex];
             currentIndex++;
             
-            if (currentIndex + idLength >= data.resValue.length) break;
-            
-            // 提取任务ID（UTF-8编码）
-            const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
-            const decoder = new TextDecoder('utf-8');
-            const id = decoder.decode(new Uint8Array(idBytes));
-            currentIndex += idLength;
-            
-            if (currentIndex + 7 >= data.resValue.length) break;
-            
-            const fileId = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const volume = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const relayEnabled = data.resValue[currentIndex] === 0x01;
-            currentIndex++;
-            
-            // 开始时间是2字节（大端序）
-            const startTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
-            currentIndex += 2;
-            
-            // 结束时间是2字节（大端序）
-            const endTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
-            currentIndex += 2;
-            
-            // 星期几是1字节（位掩码）
-            const daysMask = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const isEnabled = data.resValue[currentIndex] === 0x01;
-            currentIndex++;
-            
-            // 根据位掩码解析星期几
-            const selectedDays = [];
-            if (daysMask & 0x01) selectedDays.push('日'); // bit0: 周日
-            if (daysMask & 0x02) selectedDays.push('一'); // bit1: 周一
-            if (daysMask & 0x04) selectedDays.push('二'); // bit2: 周二
-            if (daysMask & 0x08) selectedDays.push('三'); // bit3: 周三
-            if (daysMask & 0x10) selectedDays.push('四'); // bit4: 周四
-            if (daysMask & 0x20) selectedDays.push('五'); // bit5: 周五
-            if (daysMask & 0x40) selectedDays.push('六'); // bit6: 周六
-            
-            // 将分钟数转换为HH:MM格式
-            const startTime = `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`;
-            const endTime = `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`;
-            
-            // 根据文件ID获取文件名，这里使用占位符
-            const fileName = `音频${fileId}.mp3`;
-            const filePath = `/path/to/audio${fileId}.mp3`;
-            
-            fetchedTasks.push({
-              id,
-              taskName: `任务 ${id}`,
-              fileName,
-              filePath,
-              selectedDays,
-              volume,
-              relayEnabled,
-              startTime,
-              endTime,
-              isEnabled
-            });
+            if (currentIndex + idLength < data.resValue.length) {
+              // 提取任务ID（UTF-8编码）
+              const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
+              const decoder = new TextDecoder('utf-8');
+              const id = decoder.decode(new Uint8Array(idBytes));
+              currentIndex += idLength;
+              
+              if (currentIndex + 7 < data.resValue.length) {
+                const fileId = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const volume = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const relayEnabled = data.resValue[currentIndex] === 0x01;
+                currentIndex++;
+                
+                // 开始时间是2字节（大端序）
+                const startTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
+                currentIndex += 2;
+                
+                // 结束时间是2字节（大端序）
+                const endTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
+                currentIndex += 2;
+                
+                // 星期几是1字节（位掩码）
+                const daysMask = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const isEnabled = data.resValue[currentIndex] === 0x01;
+                currentIndex++;
+                
+                // 根据位掩码解析星期几
+                const selectedDays = [];
+                if (daysMask & 0x01) selectedDays.push('日'); // bit0: 周日
+                if (daysMask & 0x02) selectedDays.push('一'); // bit1: 周一
+                if (daysMask & 0x04) selectedDays.push('二'); // bit2: 周二
+                if (daysMask & 0x08) selectedDays.push('三'); // bit3: 周三
+                if (daysMask & 0x10) selectedDays.push('四'); // bit4: 周四
+                if (daysMask & 0x20) selectedDays.push('五'); // bit5: 周五
+                if (daysMask & 0x40) selectedDays.push('六'); // bit6: 周六
+                
+                // 将分钟数转换为HH:MM格式
+                const startTime = `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`;
+                const endTime = `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`;
+                
+                // 根据文件ID获取文件名，这里使用占位符
+                const fileName = `音频${fileId}.mp3`;
+                const filePath = `/path/to/audio${fileId}.mp3`;
+                
+                // 添加到现有任务列表
+                setTasks(prevTasks => {
+                  const newTasks = [...prevTasks, {
+                    id,
+                    taskName: `任务 ${id}`,
+                    fileName,
+                    filePath,
+                    selectedDays,
+                    volume,
+                    relayEnabled,
+                    startTime,
+                    endTime,
+                    isEnabled
+                  }];
+                  console.log('获取到的定时任务:', newTasks);
+                  return newTasks;
+                });
+              }
+            }
           }
-          
-          setTasks(fetchedTasks);
-          console.log('更新后的定时任务列表:', fetchedTasks);
         }
       });
     } catch (error) {
@@ -212,68 +219,75 @@ const TaskPage: React.FC = () => {
   const fetchIntervalTasks = async () => {
     // 从设备获取循环播放任务列表
     try {
-      await sendCommandToDevice('7E 02 51 EF', (data) => {
+      await sendCommandToDevice('7E 03 01 02 51', (data) => {
         console.log('获取循环任务返回数据:', data);
         
         // 解析设备返回的循环任务数据
-        // 返回格式: 7E 02 52 [数量] [任务1] [任务2]... EF
+        // 新协议：逐个返回单个任务，最后发送结束指令
+        // 任务格式: 7E [整体长度] 02 02 52 [任务数据] 或 结束格式: 7E 03 02 02 53
         if (data.resValue && data.resValue.length >= 3) {
-          const taskCount = data.resValue[2]; // 任务数量在第3个字节
-          console.log(`检测到设备上有 ${taskCount} 个循环任务`);
+          const responseCmd = data.resValue[1]; // 响应命令码
           
-          const fetchedIntervalTasks: IntervalTask[] = [];
-          let currentIndex = 3; // 从第4个字节开始是任务信息
+          // 检查是否是结束指令
+          if (responseCmd === 0x53) {
+            // 收到结束指令，获取任务完成
+            console.log('循环任务获取完成');
+            return;
+          }
           
-          for (let i = 0; i < taskCount; i++) {
-            if (currentIndex >= data.resValue.length) break;
+          // 检查是否是任务数据指令
+          if (responseCmd === 0x52 && data.resValue.length >= 4) {
+            // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
+            let currentIndex = 2; // 从第3个字节开始是任务数据
             
-            // 解析循环任务数据格式: [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
             const idLength = data.resValue[currentIndex];
             currentIndex++;
             
-            if (currentIndex + idLength >= data.resValue.length) break;
-            
-            // 提取任务ID（UTF-8编码）
-            const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
-            const decoder = new TextDecoder('utf-8');
-            const id = decoder.decode(new Uint8Array(idBytes));
-            currentIndex += idLength;
-            
-            if (currentIndex + 5 >= data.resValue.length) break;
-            
-            const fileId = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const volume = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const relayEnabled = data.resValue[currentIndex] === 0x01;
-            currentIndex++;
-            
-            const interval = data.resValue[currentIndex];
-            currentIndex++;
-            
-            const isEnabled = data.resValue[currentIndex] === 0x01;
-            currentIndex++;
-            
-            // 根据文件ID获取文件名，这里使用占位符
-            const fileName = `音频${fileId}.mp3`;
-            const filePath = `/path/to/audio${fileId}.mp3`;
-            
-            fetchedIntervalTasks.push({
-              id,
-              taskName: `循环任务 ${id}`,
-              fileName,
-              filePath,
-              volume,
-              relayEnabled,
-              interval,
-              isEnabled
-            });
+            if (currentIndex + idLength < data.resValue.length) {
+              // 提取任务ID（UTF-8编码）
+              const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
+              const decoder = new TextDecoder('utf-8');
+              const id = decoder.decode(new Uint8Array(idBytes));
+              currentIndex += idLength;
+              
+              if (currentIndex + 5 < data.resValue.length) {
+                const fileId = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const volume = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const relayEnabled = data.resValue[currentIndex] === 0x01;
+                currentIndex++;
+                
+                const interval = data.resValue[currentIndex];
+                currentIndex++;
+                
+                const isEnabled = data.resValue[currentIndex] === 0x01;
+                currentIndex++;
+                
+                // 根据文件ID获取文件名，这里使用占位符
+                const fileName = `音频${fileId}.mp3`;
+                const filePath = `/path/to/audio${fileId}.mp3`;
+                
+                // 添加到现有任务列表
+                setIntervalTasks(prevTasks => {
+                  const newTasks = [...prevTasks, {
+                    id,
+                    taskName: `循环任务 ${id}`,
+                    fileName,
+                    filePath,
+                    volume,
+                    relayEnabled,
+                    interval,
+                    isEnabled
+                  }];
+                  console.log('获取到的循环任务:', newTasks);
+                  return newTasks;
+                });
+              }
+            }
           }
-          
-          setIntervalTasks(fetchedIntervalTasks);
-          console.log('更新后的循环任务列表:', fetchedIntervalTasks);
         }
       });
     } catch (error) {
@@ -288,10 +302,8 @@ const TaskPage: React.FC = () => {
     try {
       // 同步定时任务
       if (tasks.length > 0) {
-        // 构造批量更新定时任务的指令
-        // 格式: 7E 02 40 [数量] [任务1] [任务2]... EF
-        
-        let command = '7E 02 40 ' + tasks.length.toString(16).padStart(2, '0');
+        // 构造更新单个定时任务的指令
+        // 格式: 7E [整体长度] 01 02 40 [任务数据]
         
         for (const task of tasks) {
           // 构造每个任务的数据
@@ -347,11 +359,16 @@ const TaskPage: React.FC = () => {
           command += ' ' + taskData;
         }
         
-        command += ' EF';
-        
-        console.log('发送定时任务同步指令:', command);
-        
-        await sendCommandToDevice(command, (data) => {
+          // 计算整体长度：命令码(02 40) + 方向(01) + 任务数据长度
+          const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
+          const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
+          const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
+          
+          const singleTaskCommand = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 40 ${taskData}`;
+          
+          console.log('发送定时任务同步指令:', singleTaskCommand);
+          
+          await sendCommandToDevice(singleTaskCommand, (data) => {
           console.log('定时任务同步响应:', data);
           
           // 检查响应是否成功
@@ -359,7 +376,7 @@ const TaskPage: React.FC = () => {
             const responseCmd = data.resValue[1]; // 应答命令码
             const result = data.resValue[3]; // 结果 01=成功, 00=失败
             
-            if (responseCmd === 0x43 && result === 0x01) {
+            if (responseCmd === 0x41 && result === 0x01) {
               Taro.showToast({
                 title: '定时任务同步成功',
                 icon: 'success',
@@ -378,10 +395,8 @@ const TaskPage: React.FC = () => {
       
       // 同步循环任务
       if (intervalTasks.length > 0) {
-        // 构造批量更新循环任务的指令
-        // 格式: 7E 02 50 [数量] [任务1] [任务2]... EF
-        
-        let intervalCommand = '7E 02 50 ' + intervalTasks.length.toString(16).padStart(2, '0');
+        // 构造更新单个循环任务的指令
+        // 格式: 7E [整体长度] 01 02 50 [任务数据]
         
         for (const task of intervalTasks) {
           // 构造每个循环任务的数据
@@ -412,11 +427,16 @@ const TaskPage: React.FC = () => {
           intervalCommand += ' ' + taskData;
         }
         
-        intervalCommand += ' EF';
-        
-        console.log('发送循环任务同步指令:', intervalCommand);
-        
-        await sendCommandToDevice(intervalCommand, (data) => {
+          // 计算整体长度：命令码(02 50) + 方向(01) + 任务数据长度
+          const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
+          const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
+          const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
+          
+          const singleIntervalCommand = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 50 ${taskData}`;
+          
+          console.log('发送循环任务同步指令:', singleIntervalCommand);
+          
+          await sendCommandToDevice(singleIntervalCommand, (data) => {
           console.log('循环任务同步响应:', data);
           
           // 检查响应是否成功
@@ -424,7 +444,7 @@ const TaskPage: React.FC = () => {
             const responseCmd = data.resValue[1]; // 应答命令码
             const result = data.resValue[3]; // 结果 01=成功, 00=失败
             
-            if (responseCmd === 0x53 && result === 0x01) {
+            if (responseCmd === 0x51 && result === 0x01) {
               Taro.showToast({
                 title: '循环任务同步成功',
                 icon: 'success',
