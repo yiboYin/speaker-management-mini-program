@@ -3,6 +3,7 @@ import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
 import { sendCommandToDevice, getConnectedDevice, hexStringToArrayBuffer, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
 import { getDeviceId, getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
+import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import './index.scss'
 
 const ImportPage: React.FC = () => {
@@ -272,16 +273,12 @@ const ImportPage: React.FC = () => {
       const dataLength = 1 + idBytes.length + sizeBytes.length; // ID长度字节 + ID内容 + 大小字节
       const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
       
-      const fileInfoCommand = [
-        '7E',
-        totalLength.toString(16).padStart(2, '0'), // 整体长度
-        '01', // 方向：下行
-        '02', // 命令码
-        '33',
+      const fileInfoCommand = FILE_COMMANDS.START_FILE_TRANSFER(
+        totalLength.toString(16).padStart(2, '0'),
         idLength.toString(16).padStart(2, '0'),
-        ...Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')),
-        ...sizeBytes.map(b => b.toString(16).padStart(2, '0'))
-      ].join(' ');
+        Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')).join(' '),
+        sizeBytes.map(b => b.toString(16).padStart(2, '0'))
+      );
       
       console.log('发送开始传输及文件信息:', fileInfoCommand);
       await sendCommandToDevice(fileInfoCommand, (data) => {
@@ -299,8 +296,8 @@ const ImportPage: React.FC = () => {
       }
       
       // 第四步：发送结束指令
-      console.log('发送结束指令: 7E 03 01 02 35');
-      await sendCommandToDevice('7E 03 01 02 35', (data) => {
+      console.log('发送结束指令:', FILE_COMMANDS.END_FILE_TRANSFER);
+      await sendCommandToDevice(FILE_COMMANDS.END_FILE_TRANSFER, (data) => {
         console.log('结束指令响应:', data);
         
         // 检查设备是否成功接收文件
@@ -308,7 +305,7 @@ const ImportPage: React.FC = () => {
           const responseCmd = data.resValue[1]; // 应答命令码
           const result = data.resValue[data.resValue.length - 1]; // 结果 01=成功, 00=失败
           
-          if (responseCmd === 0x36 && result === 0x01) {
+          if (responseCmd === RESPONSE_CODES.FILE_TRANSFER_CONFIRM && result === RESULT_CODES.SUCCESS) {
             Taro.hideLoading();
             Taro.showToast({
               title: '文件发送成功',

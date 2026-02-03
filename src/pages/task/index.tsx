@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, Button } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo, eventCenter } from '@tarojs/taro'
 import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { TASK_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import TaskTabs from '@/pages/task/components/TaskTabs'
 import TaskItem from '@/pages/task/components/TaskItem'
 import IntervalItem from '@/pages/task/components/IntervalItem'
@@ -113,7 +114,7 @@ const TaskPage: React.FC = () => {
   const fetchTasks = async () => {
     // 从设备获取定时任务列表
     try {
-      await sendCommandToDevice('7E 03 01 02 42', (data) => {
+      await sendCommandToDevice(TASK_COMMANDS.GET_SCHEDULE_TASKS, (data) => {
         console.log('获取定时任务返回数据:', data);
         
         // 解析设备返回的任务数据
@@ -123,14 +124,14 @@ const TaskPage: React.FC = () => {
           const responseCmd = data.resValue[1]; // 响应命令码
           
           // 检查是否是结束指令
-          if (responseCmd === 0x43) {
+          if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_END) {
             // 收到结束指令，获取任务完成
             console.log('定时任务获取完成');
             return;
           }
           
           // 检查是否是任务数据指令
-          if (responseCmd === 0x42 && data.resValue.length >= 4) {
+          if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_ITEM && data.resValue.length >= 4) {
             // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
             let currentIndex = 2; // 从第3个字节开始是任务数据
             
@@ -219,7 +220,7 @@ const TaskPage: React.FC = () => {
   const fetchIntervalTasks = async () => {
     // 从设备获取循环播放任务列表
     try {
-      await sendCommandToDevice('7E 03 01 02 51', (data) => {
+      await sendCommandToDevice(TASK_COMMANDS.GET_INTERVAL_TASKS, (data) => {
         console.log('获取循环任务返回数据:', data);
         
         // 解析设备返回的循环任务数据
@@ -229,14 +230,14 @@ const TaskPage: React.FC = () => {
           const responseCmd = data.resValue[1]; // 响应命令码
           
           // 检查是否是结束指令
-          if (responseCmd === 0x53) {
+          if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_END) {
             // 收到结束指令，获取任务完成
             console.log('循环任务获取完成');
             return;
           }
           
           // 检查是否是任务数据指令
-          if (responseCmd === 0x52 && data.resValue.length >= 4) {
+          if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_ITEM && data.resValue.length >= 4) {
             // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
             let currentIndex = 2; // 从第3个字节开始是任务数据
             
@@ -364,7 +365,7 @@ const TaskPage: React.FC = () => {
           const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
           const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
           
-          const singleTaskCommand = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 40 ${taskData}`;
+          const singleTaskCommand = TASK_COMMANDS.UPDATE_SCHEDULE_TASK(totalLength.toString(16).padStart(2, '0'), taskData);
           
           console.log('发送定时任务同步指令:', singleTaskCommand);
           
@@ -376,7 +377,7 @@ const TaskPage: React.FC = () => {
             const responseCmd = data.resValue[1]; // 应答命令码
             const result = data.resValue[3]; // 结果 01=成功, 00=失败
             
-            if (responseCmd === 0x41 && result === 0x01) {
+            if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
               Taro.showToast({
                 title: '定时任务同步成功',
                 icon: 'success',
@@ -432,7 +433,7 @@ const TaskPage: React.FC = () => {
           const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
           const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
           
-          const singleIntervalCommand = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 50 ${taskData}`;
+          const singleIntervalCommand = TASK_COMMANDS.UPDATE_INTERVAL_TASK(totalLength.toString(16).padStart(2, '0'), taskData);
           
           console.log('发送循环任务同步指令:', singleIntervalCommand);
           
@@ -444,7 +445,7 @@ const TaskPage: React.FC = () => {
             const responseCmd = data.resValue[1]; // 应答命令码
             const result = data.resValue[3]; // 结果 01=成功, 00=失败
             
-            if (responseCmd === 0x51 && result === 0x01) {
+            if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
               Taro.showToast({
                 title: '循环任务同步成功',
                 icon: 'success',

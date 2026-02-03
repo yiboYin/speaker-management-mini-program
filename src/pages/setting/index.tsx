@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import Taro from '@tarojs/taro';
 import { View, Button, Input } from '@tarojs/components';
-import { sendCommandToDevice } from '@/utils/deviceUtils'; // 导入获取连接设备的函数和十六进制转换函数
+import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import './index.scss';
 
 const SettingPage: React.FC = () => {
@@ -22,7 +23,7 @@ const SettingPage: React.FC = () => {
   // 组件挂载时获取设备状态
   useEffect(() => {
     // 获取当前设备状态
-    sendCommandToDevice('7E 02 10 EF', (data) => {
+    sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
       console.log('初始设备状态返回数据:', data);
       
       // 解析设备状态返回数据
@@ -74,11 +75,11 @@ const SettingPage: React.FC = () => {
     let command = '';
     switch(action) {
       case 'factoryReset':
-        command = '7E 04 01 02 01'; // 恢复出厂设置指令
+        command = CONTROL_COMMANDS.FACTORY_RESET;
         break;
       case 'powerToggle':
         // 先获取设备状态，然后切换开关机状态
-        sendCommandToDevice('7E 03 01 02 10', (data) => {
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
@@ -90,10 +91,10 @@ const SettingPage: React.FC = () => {
             // 根据当前开关机状态切换
             if (powerStatus === 0x00) {
               // 当前为关机状态，发送开机指令
-              command = '7E 05 01 02 02 01';
+              command = CONTROL_COMMANDS.POWER_ON;
             } else {
               // 当前为开机状态，发送关机指令
-              command = '7E 05 01 02 02 00';
+              command = CONTROL_COMMANDS.POWER_OFF;
             }
             
             sendCommandToDevice(command, (data) => {
@@ -133,11 +134,16 @@ const SettingPage: React.FC = () => {
         // 灯模式循环：1 -> 2 -> 3 -> 1...
         // 由于当前没有存储灯模式的状态，暂时使用随机模式
         const randomMode = Math.floor(Math.random() * 3) + 1; // 1, 2, 或 3
-        command = `7E 05 01 02 03 0${randomMode}`; // 灯模式指令
+        const lightModeCommands = [
+          CONTROL_COMMANDS.LIGHT_MODE_1,
+          CONTROL_COMMANDS.LIGHT_MODE_2,
+          CONTROL_COMMANDS.LIGHT_MODE_3
+        ];
+        command = lightModeCommands[randomMode - 1];
         break;
       case 'schedule':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 03 01 02 10', (data) => {
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
@@ -149,11 +155,11 @@ const SettingPage: React.FC = () => {
             // 根据当前定时状态切换
             if (scheduleStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 05 01 02 04 01';
+              command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
               setScheduleEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 05 01 02 04 00';
+              command = CONTROL_COMMANDS.SCHEDULE_DISABLE;
               setScheduleEnabled(false); // 更新本地状态
             }
             
@@ -192,7 +198,7 @@ const SettingPage: React.FC = () => {
         return; // 返回，避免后续执行
       case 'powerPlay':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 03 01 02 10', (data) => {
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
@@ -204,11 +210,11 @@ const SettingPage: React.FC = () => {
             // 根据当前上电播放状态切换
             if (powerPlayStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 05 01 02 05 01';
+              command = CONTROL_COMMANDS.POWER_PLAY_ENABLE;
               setPowerPlayEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 05 01 02 05 00';
+              command = CONTROL_COMMANDS.POWER_PLAY_DISABLE;
               setPowerPlayEnabled(false); // 更新本地状态
             }
             
@@ -247,7 +253,7 @@ const SettingPage: React.FC = () => {
         return; // 返回，避免后续执行
       case 'timeLoop':
         // 先获取当前设备状态
-        sendCommandToDevice('7E 03 01 02 10', (data) => {
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
           console.log('设备状态返回数据:', data);
           
           // 解析设备状态返回数据
@@ -259,11 +265,11 @@ const SettingPage: React.FC = () => {
             // 根据当前到点循环状态切换
             if (timeLoopStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
-              command = '7E 05 01 02 06 01';
+              command = CONTROL_COMMANDS.TIME_LOOP_ENABLE;
               setTimeLoopEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
-              command = '7E 05 01 02 06 00';
+              command = CONTROL_COMMANDS.TIME_LOOP_DISABLE;
               setTimeLoopEnabled(false); // 更新本地状态
             }
             
@@ -301,19 +307,19 @@ const SettingPage: React.FC = () => {
         });
         return; // 返回，避免后续执行
       case 'previous':
-        command = '7E 03 01 02 07'; // 上一首指令
+        command = CONTROL_COMMANDS.PREVIOUS;
         break;
       case 'playPause':
-        command = '7E 03 01 02 08'; // 播放/停止指令
+        command = CONTROL_COMMANDS.PLAY_PAUSE;
         break;
       case 'next':
-        command = '7E 03 01 02 09'; // 下一首指令
+        command = CONTROL_COMMANDS.NEXT;
         break;
       case 'volumeUp':
-        command = '7E 03 01 02 0A'; // 音量加指令
+        command = CONTROL_COMMANDS.VOLUME_UP;
         break;
       case 'volumeDown':
-        command = '7E 03 01 02 0B'; // 音量减指令
+        command = CONTROL_COMMANDS.VOLUME_DOWN;
         break;
       default:
         console.log(`未知操作: ${action}`);
@@ -381,7 +387,11 @@ const SettingPage: React.FC = () => {
     const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
     
     // 构造完整的LED发送指令
-    const command = `7E ${totalLength.toString(16).padStart(2, '0')} 01 02 20 ${lengthHex} ${textHex}`;
+    const command = FILE_COMMANDS.SEND_LED_TEXT(
+      totalLength.toString(16).padStart(2, '0'),
+      lengthHex,
+      textHex
+    );
     
     // 发送指令到设备
     sendCommandToDevice(command, (data) => {
@@ -409,7 +419,7 @@ const SettingPage: React.FC = () => {
     
     // 播放指定文件，可能需要先发送选择文件的指令，再发送播放指令
     // 由于协议中未明确规定选择特定文件的指令，这里先发送播放/停止指令
-    const command = '7E 03 01 02 08'; // 播放/停止指令
+    const command = CONTROL_COMMANDS.PLAY_PAUSE;
     
     sendCommandToDevice(command, (data) => {
       // 处理试听操作的返回数据
@@ -437,8 +447,8 @@ const SettingPage: React.FC = () => {
     // 从文件ID中提取数字部分作为文件ID
     const fileNumber = parseInt(fileId.replace('audio_', ''), 10);
     
-    // 构造删除文件指令: 7E 04 01 02 32 [文件ID]
-    const command = `7E 04 01 02 32 ${fileNumber.toString(16).padStart(2, '0')}`;
+    // 构造删除文件指令
+    const command = FILE_COMMANDS.DELETE_FILE(fileNumber.toString(16).padStart(2, '0'));
     
     sendCommandToDevice(command, (data) => {
       // 处理删除文件操作的返回数据
@@ -449,7 +459,7 @@ const SettingPage: React.FC = () => {
         const responseCmd = data.resValue[1]; // 应答命令码
         const result = data.resValue[3]; // 结果 01=成功, 00=失败
         
-        if (responseCmd === 0x33 && result === 0x01) {
+        if (responseCmd === RESPONSE_CODES.DELETE_FILE_RESULT && result === RESULT_CODES.SUCCESS) {
           // 删除成功，从本地列表中移除该文件
           setFileList(prevList => prevList.filter(file => file.id !== fileId));
           console.log(`文件 ${fileId} 删除成功`);
@@ -483,10 +493,10 @@ const SettingPage: React.FC = () => {
 
   const handleReadFile = () => {
     // 已连接设备，向设备发送指令
-    console.log('已连接设备，发送指令: 7E 02 30 EF');
+    console.log('已连接设备，发送指令:', FILE_COMMANDS.READ_FILE_LIST);
       
     // 发送指令到设备
-    sendCommandToDevice('7E 03 01 02 30', (data) => {
+    sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
       // 处理接收到的数据
       console.log('从设备接收到数据:', data);
         
@@ -497,14 +507,14 @@ const SettingPage: React.FC = () => {
         const responseCmd = data.resValue[1]; // 响应命令码
               
         // 检查是否是结束指令
-        if (responseCmd === 0x32) {
+        if (responseCmd === RESPONSE_CODES.FILE_LIST_END) {
           // 收到结束指令，获取文件完成
           console.log('文件列表获取完成');
           return;
         }
               
         // 检查是否是文件数据指令
-        if (responseCmd === 0x31 && data.resValue.length >= 4) {
+        if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM && data.resValue.length >= 4) {
           // 解析单个文件数据格式: [文件ID][文件名长度][文件名][文件大小]
           let currentIndex = 2; // 从第3个字节开始是文件数据
                 
