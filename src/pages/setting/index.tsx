@@ -331,26 +331,8 @@ const SettingPage: React.FC = () => {
       // 处理接收到的数据
       console.log(`${action}操作返回数据:`, data);
       
-      // 如果是读取文件列表的操作，根据返回数据更新文件列表
-      if (action === 'readFiles' && data.resValue && data.resValue.length >= 2) {
-        // 获取resValue数组倒数第二位的值，表示文件数量
-        const fileCountIndex = data.resValue.length - 2;
-        const fileCount = data.resValue[fileCountIndex];
-        
-        console.log(`检测到设备上有 ${fileCount} 个文件`);
-        
-        // 创建fileList，文件名为“音频x”
-        const newFileList = [];
-        for (let i = 1; i <= fileCount; i++) {
-          newFileList.push({
-            id: `audio_${i}`,
-            name: `音频${i}`
-          });
-        }
-        
-        setFileList(newFileList);
-        console.log('更新后的文件列表:', newFileList);
-      }
+      // 注意：读取文件列表的操作由独立的 handleReadFile 函数处理
+      // 这里的逻辑已被移除，因为文件列表读取有专门的处理函数
     }).then(() => {
       Taro.showToast({
         title: '指令发送成功',

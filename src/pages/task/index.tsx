@@ -171,7 +171,7 @@ const TaskPage: React.FC = () => {
                 currentIndex++;
                 
                 // 根据位掩码解析星期几
-                const selectedDays = [];
+                const selectedDays: string[] = [];
                 if (daysMask & 0x01) selectedDays.push('日'); // bit0: 周日
                 if (daysMask & 0x02) selectedDays.push('一'); // bit1: 周一
                 if (daysMask & 0x04) selectedDays.push('二'); // bit2: 周二
@@ -303,12 +303,9 @@ const TaskPage: React.FC = () => {
     try {
       // 同步定时任务
       if (tasks.length > 0) {
-        // 构造更新单个定时任务的指令
-        // 格式: 7E [整体长度] 01 02 40 [任务数据]
-        
         for (const task of tasks) {
           // 构造每个任务的数据
-          // [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][启用状态]
+          // [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
           
           // 计算ID长度和ID的十六进制表示
           const encoder = new TextEncoder();
@@ -332,7 +329,8 @@ const TaskPage: React.FC = () => {
             .join(' ');
           
           // 从文件路径解析文件ID
-          const fileId = parseInt(task.filePath.match(/\d+/)?.[0] || '1');
+          const matchResult = task.filePath.match(/\d+/);
+          const fileId = parseInt(matchResult ? matchResult[0] : '1');
           
           // 计算星期几位掩码
           let daysMask = 0;
@@ -357,9 +355,6 @@ const TaskPage: React.FC = () => {
             (task.isEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0')     // 启用状态
           ].join(' ');
           
-          command += ' ' + taskData;
-        }
-        
           // 计算整体长度：命令码(02 40) + 方向(01) + 任务数据长度
           const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
           const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
@@ -370,35 +365,33 @@ const TaskPage: React.FC = () => {
           console.log('发送定时任务同步指令:', singleTaskCommand);
           
           await sendCommandToDevice(singleTaskCommand, (data) => {
-          console.log('定时任务同步响应:', data);
-          
-          // 检查响应是否成功
-          if (data.resValue && data.resValue.length >= 4) {
-            const responseCmd = data.resValue[1]; // 应答命令码
-            const result = data.resValue[3]; // 结果 01=成功, 00=失败
+            console.log('定时任务同步响应:', data);
             
-            if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-              Taro.showToast({
-                title: '定时任务同步成功',
-                icon: 'success',
-                duration: 2000
-              });
-            } else {
-              Taro.showToast({
-                title: '定时任务同步失败',
-                icon: 'none',
-                duration: 2000
-              });
+            // 检查响应是否成功
+            if (data.resValue && data.resValue.length >= 4) {
+              const responseCmd = data.resValue[1]; // 应答命令码
+              const result = data.resValue[3]; // 结果 01=成功, 00=失败
+              
+              if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
+                Taro.showToast({
+                  title: '定时任务同步成功',
+                  icon: 'success',
+                  duration: 2000
+                });
+              } else {
+                Taro.showToast({
+                  title: '定时任务同步失败',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
             }
-          }
-        });
+          });
+        }
       }
       
       // 同步循环任务
       if (intervalTasks.length > 0) {
-        // 构造更新单个循环任务的指令
-        // 格式: 7E [整体长度] 01 02 50 [任务数据]
-        
         for (const task of intervalTasks) {
           // 构造每个循环任务的数据
           // [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
@@ -412,7 +405,8 @@ const TaskPage: React.FC = () => {
             .join(' ');
           
           // 从文件路径解析文件ID
-          const fileId = parseInt(task.filePath.match(/\d+/)?.[0] || '1');
+          const matchResult2 = task.filePath.match(/\d+/);
+          const fileId = parseInt(matchResult2 ? matchResult2[0] : '1');
           
           // 构造任务数据
           const taskData = [
@@ -425,9 +419,6 @@ const TaskPage: React.FC = () => {
             (task.isEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0')     // 启用状态
           ].join(' ');
           
-          intervalCommand += ' ' + taskData;
-        }
-        
           // 计算整体长度：命令码(02 50) + 方向(01) + 任务数据长度
           const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
           const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
@@ -438,28 +429,29 @@ const TaskPage: React.FC = () => {
           console.log('发送循环任务同步指令:', singleIntervalCommand);
           
           await sendCommandToDevice(singleIntervalCommand, (data) => {
-          console.log('循环任务同步响应:', data);
-          
-          // 检查响应是否成功
-          if (data.resValue && data.resValue.length >= 4) {
-            const responseCmd = data.resValue[1]; // 应答命令码
-            const result = data.resValue[3]; // 结果 01=成功, 00=失败
+            console.log('循环任务同步响应:', data);
             
-            if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-              Taro.showToast({
-                title: '循环任务同步成功',
-                icon: 'success',
-                duration: 2000
-              });
-            } else {
-              Taro.showToast({
-                title: '循环任务同步失败',
-                icon: 'none',
-                duration: 2000
-              });
+            // 检查响应是否成功
+            if (data.resValue && data.resValue.length >= 4) {
+              const responseCmd = data.resValue[1]; // 应答命令码
+              const result = data.resValue[3]; // 结果 01=成功, 00=失败
+              
+              if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
+                Taro.showToast({
+                  title: '循环任务同步成功',
+                  icon: 'success',
+                  duration: 2000
+                });
+              } else {
+                Taro.showToast({
+                  title: '循环任务同步失败',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
             }
-          }
-        });
+          });
+        }
       }
       
       if (tasks.length === 0 && intervalTasks.length === 0) {
@@ -533,13 +525,7 @@ const TaskPage: React.FC = () => {
                     });
                   }
                 }} 
-                onToggleEnable={(taskId, isEnabled) => {
-                  setIntervalTasks(prevTasks => 
-                    prevTasks.map(t => 
-                      t.id === taskId ? {...t, isEnabled} : t
-                    )
-                  );
-                }}
+
                 onDelete={deleteIntervalTask}
               />
             ))}

@@ -146,8 +146,8 @@ export const listenToDeviceData = (onDataReceived: (data: {
     return;
   }
   
-  // 监听特征值变化
-  Taro.onBLECharacteristicValueChange((result) => {
+  // 定义特征值变化的回调函数
+  const handleCharacteristicValueChange = (result: any) => {
     console.log('特征值变化:', result);
     // 处理从设备接收到的数据
     if (result.deviceId === deviceId && result.serviceId === serviceUUID && result.characteristicId === notifyUUID) {
@@ -178,9 +178,13 @@ export const listenToDeviceData = (onDataReceived: (data: {
         notifyUUID,
         resValue
       });
-      Taro.offBLECharacteristicValueChange()
+      // 取消监听
+      Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     }
-  });
+  };
+  
+  // 监听特征值变化
+  Taro.onBLECharacteristicValueChange(handleCharacteristicValueChange);
 };
 
 // 发送指令到设备的辅助函数

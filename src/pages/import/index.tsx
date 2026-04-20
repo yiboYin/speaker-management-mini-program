@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
-import { sendCommandToDevice, getConnectedDevice, hexStringToArrayBuffer, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
-import { getDeviceId, getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
+import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
 import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import './index.scss'
 
@@ -51,10 +50,13 @@ const ImportPage: React.FC = () => {
             const newFiles = mp3Files.map((file, index) => {
               const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1) + 'MB';
               const now = new Date();
-              const dateStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+              const year = now.getFullYear();
+              const month = (now.getMonth() + 1).toString().padStart(2, '0');
+              const day = now.getDate().toString().padStart(2, '0');
+              const dateStr = year + '-' + month + '-' + day;
               
               return {
-                id: `new_${Date.now()}_${index}`,
+                id: 'new_' + Date.now() + '_' + index,
                 name: file.name,
                 size: fileSizeMB,
                 date: dateStr,
@@ -67,7 +69,7 @@ const ImportPage: React.FC = () => {
             setFileList(prevList => [...prevList, ...newFiles]);
             
             Taro.showToast({
-              title: `成功添加 ${mp3Files.length} 个MP3文件`,
+              title: '成功添加 ' + mp3Files.length + ' 个MP3文件',
               icon: 'success',
               duration: 2000
             });
@@ -135,7 +137,7 @@ const ImportPage: React.FC = () => {
       audioInstance.onPlay(() => {
         console.log('音频开始播放');
         Taro.showToast({
-          title: `正在试听 ${selectedFile.name}`,
+          title: '正在试听 ' + selectedFile.name,
           icon: 'none',
           duration: 2000
         });
@@ -173,7 +175,7 @@ const ImportPage: React.FC = () => {
       
       // 显示播放提示
       Taro.showToast({
-        title: `正在播放 ${selectedFile.name}`,
+        title: '正在播放 ' + selectedFile.name,
         icon: 'none',
         duration: 2000
       });
@@ -227,7 +229,7 @@ const ImportPage: React.FC = () => {
     
     // 显示正在发送的提示
     Taro.showLoading({
-      title: `正在发送 ${selectedFile.name} 到设备...`
+      title: '正在发送 ' + selectedFile.name + ' 到设备...'
     });
       
     // 尝试读取文件的二进制内容
@@ -235,12 +237,15 @@ const ImportPage: React.FC = () => {
     
     try {
       // 尝试使用Taro的文件系统管理器读取文件
-      const fs = Taro.getFileSystemManager?.();
+      const getFileSystemManager = Taro.getFileSystemManager;
+      const fs = getFileSystemManager ? getFileSystemManager() : null;
       
       if (fs && selectedFile.path) {
         // 读取文件内容（二进制）
         const filePath = selectedFile.path;
-        fileContentArrayBuffer = fs.readFileSync(filePath);
+        const fileData = fs.readFileSync(filePath);
+        // 确保返回的是 ArrayBuffer 类型
+        fileContentArrayBuffer = fileData instanceof ArrayBuffer ? fileData : new ArrayBuffer(0);
       }
     } catch (readError) {
       console.warn('读取文件内容失败:', readError);
@@ -286,11 +291,30 @@ const ImportPage: React.FC = () => {
       });
       
       // 第三步：发送文件内容（分包发送）
-      if (fileContentArrayBuffer) {
+      if (fileContentArrayBuffer && fileContentArrayBuffer.byteLength > 0) {
         console.log(`发送文件内容，总大小: ${fileContentArrayBuffer.byteLength} 字节`);
         
+        // 获取蓝牙连接参数
+        const connectedDevice = getConnectedDevice();
+        if (!connectedDevice) {
+          throw new Error('未找到已连接的设备');
+        }
+        
+        const deviceId = connectedDevice.deviceId;
+        const serviceUUID = getFilterServiceUUID();
+        const writeUUID = getWriteUUID();
+        
+        if (!serviceUUID || !writeUUID) {
+          throw new Error('未找到蓝牙服务或特征UUID');
+        }
+        
         // 使用writeCommandToDeviceWithSplit方法分包发送
-        await writeCommandToDeviceWithSplit(fileContentArrayBuffer);
+        await writeCommandToDeviceWithSplit(
+          fileContentArrayBuffer,
+          deviceId,
+          serviceUUID,
+          writeUUID
+        );
         
         console.log('文件内容分包发送完成');
       }

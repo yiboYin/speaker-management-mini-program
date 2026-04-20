@@ -25,6 +25,8 @@ const ConnectionPage: React.FC = () => {
       },
       fail: (err) => {
         console.error('蓝牙模块初始化失败:', err);
+        // 隐藏loading图标
+        setShowLoading(false);
         // 如果初始化失败，提示用户
         Taro.showToast({
           title: '蓝牙初始化失败，请检查蓝牙设置',
