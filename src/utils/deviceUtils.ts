@@ -1,5 +1,5 @@
 import Taro, { getStorageSync } from '@tarojs/taro';
-import { Device } from '../../types/device';
+import { Device } from '../types/device';
 
 // 获取连接设备的函数
 export const getConnectedDevice = (): Device | null => {
