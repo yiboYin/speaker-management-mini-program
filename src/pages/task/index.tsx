@@ -132,7 +132,7 @@ const TaskPage: React.FC = () => {
           
           // 检查是否是任务数据指令
           if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_ITEM && data.resValue.length >= 4) {
-            // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
+            // 解析单个任务数据格式: [ID长度][ID][文件ID长度][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
             let currentIndex = 2; // 从第3个字节开始是任务数据
             
             const idLength = data.resValue[currentIndex];
@@ -145,9 +145,14 @@ const TaskPage: React.FC = () => {
               const id = decoder.decode(new Uint8Array(idBytes));
               currentIndex += idLength;
               
-              if (currentIndex + 7 < data.resValue.length) {
-                const fileId = data.resValue[currentIndex];
+              if (currentIndex + 8 < data.resValue.length) {
+                // 文件ID长度（1字节）
+                const fileIdLength = data.resValue[currentIndex];
                 currentIndex++;
+                
+                // 文件ID（根据文件ID长度读取）
+                const fileId = data.resValue[currentIndex];
+                currentIndex += fileIdLength;
                 
                 const volume = data.resValue[currentIndex];
                 currentIndex++;
@@ -155,34 +160,34 @@ const TaskPage: React.FC = () => {
                 const relayEnabled = data.resValue[currentIndex] === 0x01;
                 currentIndex++;
                 
-                // 开始时间是2字节（大端序）
-                const startTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
+                // 开始时间：第1字节=小时，第2字节=分钟
+                const startHour = data.resValue[currentIndex];
+                const startMinute = data.resValue[currentIndex + 1];
+                const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
                 currentIndex += 2;
                 
-                // 结束时间是2字节（大端序）
-                const endTimeMinutes = (data.resValue[currentIndex] << 8) | data.resValue[currentIndex + 1];
+                // 结束时间：第1字节=小时，第2字节=分钟
+                const endHour = data.resValue[currentIndex];
+                const endMinute = data.resValue[currentIndex + 1];
+                const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
                 currentIndex += 2;
                 
-                // 星期几是1字节（位掩码）
+                // 星期几是1字节（位掩码，bit0=周一，bit6=周日）
                 const daysMask = data.resValue[currentIndex];
                 currentIndex++;
                 
                 const isEnabled = data.resValue[currentIndex] === 0x01;
                 currentIndex++;
                 
-                // 根据位掩码解析星期几
+                // 根据位掩码解析星期几（新规则：bit0=周一，bit6=周日）
                 const selectedDays: string[] = [];
-                if (daysMask & 0x01) selectedDays.push('日'); // bit0: 周日
-                if (daysMask & 0x02) selectedDays.push('一'); // bit1: 周一
-                if (daysMask & 0x04) selectedDays.push('二'); // bit2: 周二
-                if (daysMask & 0x08) selectedDays.push('三'); // bit3: 周三
-                if (daysMask & 0x10) selectedDays.push('四'); // bit4: 周四
-                if (daysMask & 0x20) selectedDays.push('五'); // bit5: 周五
-                if (daysMask & 0x40) selectedDays.push('六'); // bit6: 周六
-                
-                // 将分钟数转换为HH:MM格式
-                const startTime = `${Math.floor(startTimeMinutes / 60).toString().padStart(2, '0')}:${(startTimeMinutes % 60).toString().padStart(2, '0')}`;
-                const endTime = `${Math.floor(endTimeMinutes / 60).toString().padStart(2, '0')}:${(endTimeMinutes % 60).toString().padStart(2, '0')}`;
+                if (daysMask & 0x01) selectedDays.push('一'); // bit0: 周一
+                if (daysMask & 0x02) selectedDays.push('二'); // bit1: 周二
+                if (daysMask & 0x04) selectedDays.push('三'); // bit2: 周三
+                if (daysMask & 0x08) selectedDays.push('四'); // bit3: 周四
+                if (daysMask & 0x10) selectedDays.push('五'); // bit4: 周五
+                if (daysMask & 0x20) selectedDays.push('六'); // bit5: 周六
+                if (daysMask & 0x40) selectedDays.push('日'); // bit6: 周日
                 
                 // 根据文件ID获取文件名，这里使用占位符
                 const fileName = `音频${fileId}.mp3`;
@@ -238,7 +243,7 @@ const TaskPage: React.FC = () => {
           
           // 检查是否是任务数据指令
           if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_ITEM && data.resValue.length >= 4) {
-            // 解析单个任务数据格式: [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
+            // 解析单个任务数据格式: [ID长度][ID][文件ID长度][文件ID][音量][继电器][间隔时间][启用状态]
             let currentIndex = 2; // 从第3个字节开始是任务数据
             
             const idLength = data.resValue[currentIndex];
@@ -251,9 +256,14 @@ const TaskPage: React.FC = () => {
               const id = decoder.decode(new Uint8Array(idBytes));
               currentIndex += idLength;
               
-              if (currentIndex + 5 < data.resValue.length) {
-                const fileId = data.resValue[currentIndex];
+              if (currentIndex + 6 < data.resValue.length) {
+                // 文件ID长度（1字节）
+                const fileIdLength = data.resValue[currentIndex];
                 currentIndex++;
+                
+                // 文件ID（根据文件ID长度读取）
+                const fileId = data.resValue[currentIndex];
+                currentIndex += fileIdLength;
                 
                 const volume = data.resValue[currentIndex];
                 currentIndex++;
@@ -305,7 +315,7 @@ const TaskPage: React.FC = () => {
       if (tasks.length > 0) {
         for (const task of tasks) {
           // 构造每个任务的数据
-          // [ID长度][ID][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
+          // [ID长度][ID][文件ID长度][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
           
           // 计算ID长度和ID的十六进制表示
           const encoder = new TextEncoder();
@@ -315,37 +325,37 @@ const TaskPage: React.FC = () => {
             .map(b => b.toString(16).padStart(2, '0'))
             .join(' ');
           
-          // 解析时间字符串为分钟数
+          // 解析时间字符串，第一个字节代表小时，第二个字节代表分钟
           const [startHour, startMinute] = task.startTime.split(':').map(Number);
-          const startTimeMinutes = startHour * 60 + startMinute;
-          const startTimeHex = [(startTimeMinutes >> 8) & 0xFF, startTimeMinutes & 0xFF]
+          const startTimeHex = [startHour, startMinute]
             .map(b => b.toString(16).padStart(2, '0'))
             .join(' ');
           
           const [endHour, endMinute] = task.endTime.split(':').map(Number);
-          const endTimeMinutes = endHour * 60 + endMinute;
-          const endTimeHex = [(endTimeMinutes >> 8) & 0xFF, endTimeMinutes & 0xFF]
+          const endTimeHex = [endHour, endMinute]
             .map(b => b.toString(16).padStart(2, '0'))
             .join(' ');
           
           // 从文件路径解析文件ID
           const matchResult = task.filePath.match(/\d+/);
           const fileId = parseInt(matchResult ? matchResult[0] : '1');
+          const fileIdLength = fileId.toString(16).length > 1 ? 1 : 1; // 文件ID长度（固定1字节）
           
           // 计算星期几位掩码
           let daysMask = 0;
-          if (task.selectedDays.includes('日')) daysMask |= 0x01; // 周日
-          if (task.selectedDays.includes('一')) daysMask |= 0x02; // 周一
-          if (task.selectedDays.includes('二')) daysMask |= 0x04; // 周二
-          if (task.selectedDays.includes('三')) daysMask |= 0x08; // 周三
-          if (task.selectedDays.includes('四')) daysMask |= 0x10; // 周四
-          if (task.selectedDays.includes('五')) daysMask |= 0x20; // 周五
-          if (task.selectedDays.includes('六')) daysMask |= 0x40; // 周六
+          if (task.selectedDays.includes('一')) daysMask |= 0x01; // bit0: 周一
+          if (task.selectedDays.includes('二')) daysMask |= 0x02; // bit1: 周二
+          if (task.selectedDays.includes('三')) daysMask |= 0x04; // bit2: 周三
+          if (task.selectedDays.includes('四')) daysMask |= 0x08; // bit3: 周四
+          if (task.selectedDays.includes('五')) daysMask |= 0x10; // bit4: 周五
+          if (task.selectedDays.includes('六')) daysMask |= 0x20; // bit5: 周六
+          if (task.selectedDays.includes('日')) daysMask |= 0x40; // bit6: 周日
           
           // 构造任务数据
           const taskData = [
             idLength.toString(16).padStart(2, '0'),  // ID长度
             idHex,                                     // ID
+            fileIdLength.toString(16).padStart(2, '0'), // 文件ID长度
             fileId.toString(16).padStart(2, '0'),      // 文件ID
             task.volume.toString(16).padStart(2, '0'), // 音量
             (task.relayEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0'), // 继电器
@@ -394,7 +404,7 @@ const TaskPage: React.FC = () => {
       if (intervalTasks.length > 0) {
         for (const task of intervalTasks) {
           // 构造每个循环任务的数据
-          // [ID长度][ID][文件ID][音量][继电器][间隔时间][启用状态]
+          // [ID长度][ID][文件ID长度][文件ID][音量][继电器][间隔时间][启用状态]
           
           // 计算ID长度和ID的十六进制表示
           const encoder = new TextEncoder();
@@ -407,11 +417,13 @@ const TaskPage: React.FC = () => {
           // 从文件路径解析文件ID
           const matchResult2 = task.filePath.match(/\d+/);
           const fileId = parseInt(matchResult2 ? matchResult2[0] : '1');
+          const fileIdLength = 1; // 文件ID长度（固定1字节）
           
           // 构造任务数据
           const taskData = [
             idLength.toString(16).padStart(2, '0'),  // ID长度
             idHex,                                     // ID
+            fileIdLength.toString(16).padStart(2, '0'), // 文件ID长度
             fileId.toString(16).padStart(2, '0'),      // 文件ID
             task.volume.toString(16).padStart(2, '0'), // 音量
             (task.relayEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0'), // 继电器
