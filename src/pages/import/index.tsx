@@ -3,6 +3,7 @@ import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
 import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
 import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
+import { getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
 const ImportPage: React.FC = () => {
