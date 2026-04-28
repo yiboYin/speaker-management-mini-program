@@ -121,6 +121,7 @@ export const hexStringToArrayBuffer = (hexString: string): ArrayBuffer => {
 
 
 // 注意：此函数需要在有设备信息的上下文中调用，需要手动传入设备信息以避免循环依赖
+// 回调函数返回 true 表示继续监听，返回 false 表示终止监听
 export const listenToDeviceData = (onDataReceived: (data: {
   hex: string;
   ascii: string;
@@ -130,7 +131,7 @@ export const listenToDeviceData = (onDataReceived: (data: {
   serviceUUID: string;
   notifyUUID: string;
   resValue: Uint8Array;
-}) => void, deviceId: string, serviceUUID: string, notifyUUID: string) => {
+}) => boolean | void, deviceId: string, serviceUUID: string, notifyUUID: string) => {
   if (!deviceId) {
     console.error('未找到已连接的设备ID');
     return;
@@ -167,8 +168,8 @@ export const listenToDeviceData = (onDataReceived: (data: {
       temp = String.fromCharCode.apply(String, resValue);
       console.log('temp --- ASCII字符串:', temp);
       
-      // 调用回调函数处理接收到的数据
-      onDataReceived({
+      // 调用回调函数处理接收到的数据，并获取返回值
+      const shouldContinue = onDataReceived({
         hex,
         ascii: asciiStr,
         rawValue: result.value,
@@ -178,8 +179,13 @@ export const listenToDeviceData = (onDataReceived: (data: {
         notifyUUID,
         resValue
       });
-      // 取消监听
-      Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
+      
+      // 根据回调函数返回值决定是否终止监听
+      // 如果返回 false，则取消监听；返回 true 或 undefined 则继续监听
+      if (shouldContinue === false) {
+        console.log('回调函数返回 false，取消监听');
+        Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
+      }
     }
   };
   

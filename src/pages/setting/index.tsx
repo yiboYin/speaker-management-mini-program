@@ -39,6 +39,7 @@ const SettingPage: React.FC = () => {
         setPowerPlayEnabled(powerPlayStatus === 0x01);
         setTimeLoopEnabled(timeLoopStatus === 0x01);
       }
+      return false;
     }).catch((error) => {
       console.error('获取初始设备状态失败:', error);
     });
@@ -99,6 +100,7 @@ const SettingPage: React.FC = () => {
             
             sendCommandToDevice(command, (data) => {
               console.log('开关机操作返回数据:', data);
+              return false;
             }).then(() => {
               Taro.showToast({
                 title: '开关机指令发送成功',
@@ -121,6 +123,7 @@ const SettingPage: React.FC = () => {
               duration: 2000
             });
           }
+          return false; // 返回，避免后续执行
         }).catch((error) => {
           console.error('获取设备状态失败:', error);
           Taro.showToast({
@@ -129,7 +132,7 @@ const SettingPage: React.FC = () => {
             duration: 2000
           });
         });
-        return; // 返回，避免后续执行
+        return false; // 返回，避免执行后续的通用发送逻辑
       case 'lightMode':
         // 灯模式循环：1 -> 2 -> 3 -> 1...
         // 由于当前没有存储灯模式的状态，暂时使用随机模式
@@ -165,6 +168,7 @@ const SettingPage: React.FC = () => {
             
             sendCommandToDevice(command, (data) => {
               console.log('定时操作返回数据:', data);
+              return false;
             }).then(() => {
               Taro.showToast({
                 title: scheduleStatus === 0x00 ? '定时开启成功' : '定时关闭成功',
@@ -195,7 +199,7 @@ const SettingPage: React.FC = () => {
             duration: 2000
           });
         });
-        return; // 返回，避免后续执行
+        return false; // 返回，避免后续执行
       case 'powerPlay':
         // 先获取当前设备状态
         sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
@@ -220,6 +224,7 @@ const SettingPage: React.FC = () => {
             
             sendCommandToDevice(command, (data) => {
               console.log('上电播放操作返回数据:', data);
+              return false;
             }).then(() => {
               Taro.showToast({
                 title: powerPlayStatus === 0x00 ? '上电播放开启成功' : '上电播放关闭成功',
@@ -250,7 +255,7 @@ const SettingPage: React.FC = () => {
             duration: 2000
           });
         });
-        return; // 返回，避免后续执行
+        return false; // 返回，避免执行后续的通用发送逻辑
       case 'timeLoop':
         // 先获取当前设备状态
         sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
@@ -275,6 +280,7 @@ const SettingPage: React.FC = () => {
             
             sendCommandToDevice(command, (data) => {
               console.log('到点循环操作返回数据:', data);
+              return false;
             }).then(() => {
               Taro.showToast({
                 title: timeLoopStatus === 0x00 ? '到点循环开启成功' : '到点循环关闭成功',
@@ -305,7 +311,7 @@ const SettingPage: React.FC = () => {
             duration: 2000
           });
         });
-        return; // 返回，避免后续执行
+        return false; // 返回，避免执行后续的通用发送逻辑
       case 'previous':
         command = CONTROL_COMMANDS.PREVIOUS;
         break;
@@ -333,6 +339,7 @@ const SettingPage: React.FC = () => {
       
       // 注意：读取文件列表的操作由独立的 handleReadFile 函数处理
       // 这里的逻辑已被移除，因为文件列表读取有专门的处理函数
+      return false;
     }).then(() => {
       Taro.showToast({
         title: '指令发送成功',
@@ -379,6 +386,7 @@ const SettingPage: React.FC = () => {
     sendCommandToDevice(command, (data) => {
       // 处理接收到的数据
       console.log('LED内容发送返回数据:', data);
+      return false;
     }).then(() => {
       Taro.showToast({
         title: 'LED内容发送成功',
@@ -406,6 +414,7 @@ const SettingPage: React.FC = () => {
     sendCommandToDevice(command, (data) => {
       // 处理试听操作的返回数据
       console.log(`试听第${fileIndex}个文件返回数据:`, data);
+      return false;
     }).then(() => {
       Taro.showToast({
         title: '试听指令发送成功',
@@ -461,6 +470,7 @@ const SettingPage: React.FC = () => {
           });
         }
       }
+      return false;
     }).then(() => {
       console.log('删除文件指令发送完成');
     }).catch((error) => {
@@ -492,7 +502,7 @@ const SettingPage: React.FC = () => {
         if (responseCmd === RESPONSE_CODES.FILE_LIST_END) {
           // 收到结束指令，获取文件完成
           console.log('文件列表获取完成');
-          return;
+          return false;
         }
               
         // 检查是否是文件数据指令
@@ -536,6 +546,7 @@ const SettingPage: React.FC = () => {
           }
         }
       }
+      return false;
     }).then(() => {
       Taro.showToast({
         title: '指令发送成功',

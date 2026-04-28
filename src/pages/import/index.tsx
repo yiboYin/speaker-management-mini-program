@@ -289,6 +289,7 @@ const ImportPage: React.FC = () => {
       console.log('发送开始传输及文件信息:', fileInfoCommand);
       await sendCommandToDevice(fileInfoCommand, (data) => {
         console.log('开始传输及文件信息响应:', data);
+        return false;
       });
       
       // 第三步：发送文件内容（分包发送）
@@ -353,6 +354,7 @@ const ImportPage: React.FC = () => {
             duration: 2000
           });
         }
+        return false;
       });
     } catch (error) {
       console.error('发送文件过程出错:', error);

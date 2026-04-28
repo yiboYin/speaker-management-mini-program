@@ -127,7 +127,7 @@ const TaskPage: React.FC = () => {
           if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_END) {
             // 收到结束指令，获取任务完成
             console.log('定时任务获取完成');
-            return;
+            return false;
           }
           
           // 检查是否是任务数据指令
@@ -212,6 +212,7 @@ const TaskPage: React.FC = () => {
                 });
               }
             }
+            return true;
           }
         }
       });
@@ -238,7 +239,7 @@ const TaskPage: React.FC = () => {
           if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_END) {
             // 收到结束指令，获取任务完成
             console.log('循环任务获取完成');
-            return;
+            return false;
           }
           
           // 检查是否是任务数据指令
@@ -300,6 +301,7 @@ const TaskPage: React.FC = () => {
             }
           }
         }
+        return false;
       });
     } catch (error) {
       console.error('获取循环任务失败:', error);
@@ -396,6 +398,7 @@ const TaskPage: React.FC = () => {
                 });
               }
             }
+            return false;
           });
         }
       }
@@ -462,6 +465,7 @@ const TaskPage: React.FC = () => {
                 });
               }
             }
+            return false;
           });
         }
       }
