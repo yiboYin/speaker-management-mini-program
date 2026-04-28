@@ -3,7 +3,7 @@ import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
 import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
 import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
-import { getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
+import { getFilterServiceUUID, getWriteUUID, getNotifyUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
 const ImportPage: React.FC = () => {
@@ -305,17 +305,21 @@ const ImportPage: React.FC = () => {
         const deviceId = connectedDevice.deviceId;
         const serviceUUID = getFilterServiceUUID();
         const writeUUID = getWriteUUID();
+        const notifyUUID = getNotifyUUID(); // 新增：获取通知特征UUID
         
-        if (!serviceUUID || !writeUUID) {
+        if (!serviceUUID || !writeUUID || !notifyUUID) {
           throw new Error('未找到蓝牙服务或特征UUID');
         }
         
-        // 使用writeCommandToDeviceWithSplit方法分包发送
+        // 使用writeCommandToDeviceWithSplit方法分包发送（带应答确认）
         await writeCommandToDeviceWithSplit(
           fileContentArrayBuffer,
           deviceId,
           serviceUUID,
-          writeUUID
+          writeUUID,
+          notifyUUID,   // 新增：通知特征UUID，用于接收设备应答
+          3000,         // 超时时间：每个包等待应答最多3秒
+          20            // 包间延迟：收到应答后延迟20ms再发送下一个包
         );
         
         console.log('文件内容分包发送完成');

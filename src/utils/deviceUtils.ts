@@ -300,13 +300,16 @@ export const writeCommandToDevice = async (command: string, deviceId: string, se
   }
 };
 
-// 分包发送大于20字节的数据
+// 分包发送大于20字节的数据（带应答确认机制）
+// 每个数据包发送后等待设备应答，确认成功后才发送下一个包
 export const writeCommandToDeviceWithSplit = async (
   buffer: ArrayBuffer, 
   deviceId: string, 
   serviceUUID: string, 
   writeUUID: string,
-  delayMs: number = 20
+  notifyUUID: string,      // 新增：用于监听设备应答的特征UUID
+  timeoutMs: number = 3000, // 新增：每个包的应答超时时间（默认3秒）
+  delayMs: number = 20      // 保持：收到应答后的延迟（默认20ms）
 ): Promise<boolean> => {
   if (!deviceId) {
     throw new Error('未找到已连接的设备ID');
@@ -320,6 +323,10 @@ export const writeCommandToDeviceWithSplit = async (
     throw new Error('未找到写特征UUID');
   }
   
+  if (!notifyUUID) {
+    throw new Error('未找到通知特征UUID，无法接收设备应答');
+  }
+  
   try {
     const bytes = new Uint8Array(buffer);
     const packetSize = 20; // BLE 4.0 最大20字节
@@ -329,6 +336,35 @@ export const writeCommandToDeviceWithSplit = async (
     
     // iOS 和 Android 系统处理方式不同
     const isIOS = Taro.getSystemInfoSync().platform === 'ios';
+    
+    // 定义应答等待的变量
+    let resolveAck: (value: boolean) => void;
+    let ackPromise: Promise<boolean>;
+    
+    // 创建特征值变化的监听器
+    const handleCharacteristicValueChange = (result: any) => {
+      // 检查是否是目标设备的应答
+      if (result.deviceId === deviceId && 
+          result.serviceId === serviceUUID && 
+          result.characteristicId === notifyUUID) {
+        
+        const resValue = new Uint8Array(result.value, 0);
+        console.log('收到设备应答:', resValue);
+        
+        // 根据协议判断应答是否成功
+        // 这里假设：只要收到应答且长度>0就认为成功
+        // 实际项目中应根据具体协议调整判断逻辑
+        const isSuccess = resValue.length > 0;
+        
+        // 解析等待中的 Promise
+        if (resolveAck) {
+          resolveAck(isSuccess);
+        }
+      }
+    };
+    
+    // 注册监听器
+    Taro.onBLECharacteristicValueChange(handleCharacteristicValueChange);
     
     for (let i = 0; i < totalPackets; i++) {
       const start = i * packetSize;
@@ -346,6 +382,17 @@ export const writeCommandToDeviceWithSplit = async (
         attemptCount++;
         
         try {
+          // 为当前包创建应答等待 Promise
+          ackPromise = new Promise<boolean>((resolve, reject) => {
+            resolveAck = resolve;
+            
+            // 设置超时保护
+            setTimeout(() => {
+              reject(new Error(`第 ${i + 1}/${totalPackets} 个数据包等待应答超时 (${timeoutMs}ms)`));
+            }, timeoutMs);
+          });
+          
+          // 发送数据包
           await Taro.writeBLECharacteristicValue({
             deviceId,
             serviceId: serviceUUID,
@@ -353,19 +400,29 @@ export const writeCommandToDeviceWithSplit = async (
             value: packetBuffer
           });
           
-          console.log(`第 ${i + 1}/${totalPackets} 个数据包发送成功`);
-          success = true;
+          console.log(`第 ${i + 1}/${totalPackets} 个数据包已发送，等待设备应答...`);
           
-          // 如果是iOS系统，不需要延迟；如果是Android系统，需要延迟
-          if (!isIOS && i < totalPackets - 1) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+          // 等待设备应答
+          const ackResult = await ackPromise;
+          
+          if (ackResult) {
+            console.log(`第 ${i + 1}/${totalPackets} 个数据包应答成功`);
+            success = true;
+            
+            // 收到应答后，延迟一下再发送下一个包（给设备处理时间）
+            if (i < totalPackets - 1) {
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+          } else {
+            console.warn(`第 ${i + 1}/${totalPackets} 个数据包收到失败应答`);
+            throw new Error('设备返回失败应答');
           }
         } catch (error) {
-          console.warn(`第 ${i + 1}/${totalPackets} 个数据包发送失败 (尝试 ${attemptCount}/${maxAttempts})`, error);
+          console.warn(`第 ${i + 1}/${totalPackets} 个数据包发送/应答失败 (尝试 ${attemptCount}/${maxAttempts})`, error);
           
           // 如果不是最后一次尝试，等待后重试
           if (attemptCount < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            await new Promise(resolve => setTimeout(resolve, delayMs * 2)); // 重试时增加延迟
           } else {
             console.error(`第 ${i + 1}/${totalPackets} 个数据包发送失败，已达到最大重试次数`);
             throw error;
@@ -378,10 +435,14 @@ export const writeCommandToDeviceWithSplit = async (
       }
     }
     
+    // 所有包发送完成，取消监听
+    Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     console.log('所有数据包发送完成');
     return true;
   } catch (error) {
     console.error('分包发送数据失败:', error);
+    // 发生错误时也取消监听，避免内存泄漏
+    Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     return false;
   }
 };
