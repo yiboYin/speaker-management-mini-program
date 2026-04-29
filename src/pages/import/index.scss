@@ -3,7 +3,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f0f7ff; // 参考任务页的背景色
+  background: linear-gradient(180deg, #a8c0ff 0%, #f0f7ff 30%, #ffffff 100%);
   
   // 工具栏（移除绝对定位）
   .toolbar {
