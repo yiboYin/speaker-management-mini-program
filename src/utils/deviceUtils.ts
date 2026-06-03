@@ -242,6 +242,13 @@ export const sendCommandToDevice = async (
     }
   } catch (error) {
     console.error('发送指令失败:', error);
+    // 显示失败提示
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
+    Taro.showToast({
+      title: `发送失败: ${errorMessage}`,
+      icon: 'none',
+      duration: 2000
+    });
   }
 };
 
@@ -309,7 +316,8 @@ export const writeCommandToDeviceWithSplit = async (
   writeUUID: string,
   notifyUUID: string,      // 新增：用于监听设备应答的特征UUID
   timeoutMs: number = 3000, // 新增：每个包的应答超时时间（默认3秒）
-  delayMs: number = 20      // 保持：收到应答后的延迟（默认20ms）
+  delayMs: number = 20,     // 保持：收到应答后的延迟（默认20ms）
+  onProgress?: (progress: number) => void  // 新增：进度回调函数，返回 0-100 的进度值
 ): Promise<boolean> => {
   if (!deviceId) {
     throw new Error('未找到已连接的设备ID');
@@ -333,6 +341,12 @@ export const writeCommandToDeviceWithSplit = async (
     const totalPackets = Math.ceil(bytes.length / packetSize);
     
     console.log(`准备分包发送数据，总大小: ${bytes.length} 字节，共 ${totalPackets} 个数据包`);
+    
+    Taro.showToast({
+      title: `准备发送 ${totalPackets} 个数据包`,
+      icon: 'none',
+      duration: 1500
+    });
     
     // iOS 和 Android 系统处理方式不同
     const isIOS = Taro.getSystemInfoSync().platform === 'ios';
@@ -432,6 +446,12 @@ export const writeCommandToDeviceWithSplit = async (
       
       if (!success) {
         throw new Error(`第 ${i + 1}/${totalPackets} 个数据包发送失败`);
+      }
+      
+      // 发送进度回调
+      if (onProgress) {
+        const progress = Math.round(((i + 1) / totalPackets) * 100);
+        onProgress(progress);
       }
     }
     

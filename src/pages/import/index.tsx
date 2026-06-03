@@ -258,6 +258,12 @@ const ImportPage: React.FC = () => {
     
     try {
       // 第一步：发送开始传输及文件信息指令
+      Taro.showToast({
+        title: '开始传输...',
+        icon: 'none',
+        duration: 1500
+      });
+      
       // 格式: 7E 02 33 [ID长度] [ID] [大小] EF
       
       // 使用文件名的哈希值或部分作为文件ID
@@ -287,6 +293,11 @@ const ImportPage: React.FC = () => {
       );
       
       console.log('发送开始传输及文件信息:', fileInfoCommand);
+      Taro.showToast({
+        title: `发送开始传输及文件信息:${fileInfoCommand}`,
+        icon: 'none',
+        duration: 1000
+      });
       await sendCommandToDevice(fileInfoCommand, (data) => {
         console.log('开始传输及文件信息响应:', data);
         return false;
@@ -310,7 +321,11 @@ const ImportPage: React.FC = () => {
         if (!serviceUUID || !writeUUID || !notifyUUID) {
           throw new Error('未找到蓝牙服务或特征UUID');
         }
-        
+        Taro.showToast({
+          title: `开始分包发送`,
+          icon: 'none',
+          duration: 1000
+        });
         // 使用writeCommandToDeviceWithSplit方法分包发送（带应答确认）
         await writeCommandToDeviceWithSplit(
           fileContentArrayBuffer,
@@ -319,9 +334,21 @@ const ImportPage: React.FC = () => {
           writeUUID,
           notifyUUID,   // 新增：通知特征UUID，用于接收设备应答
           3000,         // 超时时间：每个包等待应答最多3秒
-          20            // 包间延迟：收到应答后延迟20ms再发送下一个包
+          20,           // 包间延迟：收到应答后延迟20ms再发送下一个包
+          (progress) => {
+            // 进度回调：显示当前传输进度
+            Taro.showToast({
+              title: `传输中 ${progress}%`,
+              icon: 'none',
+              duration: 1000
+            });
+          }
         );
-        
+        Taro.showToast({
+          title: `文件内容分包发送完成`,
+          icon: 'none',
+          duration: 1000
+        });
         console.log('文件内容分包发送完成');
       }
       
@@ -364,7 +391,7 @@ const ImportPage: React.FC = () => {
       console.error('发送文件过程出错:', error);
       Taro.hideLoading();
       Taro.showToast({
-        title: '文件发送失败',
+        title: `文件发送失败:${error.message}`,
         icon: 'none',
         duration: 2000
       });
