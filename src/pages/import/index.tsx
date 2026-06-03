@@ -252,8 +252,7 @@ const ImportPage: React.FC = () => {
       console.warn('读取文件内容失败:', readError);
       
       // 如果无法读取文件内容，使用文件名作为标识
-      const encoder = new TextEncoder();
-      fileContentArrayBuffer = encoder.encode(selectedFile.name);
+      fileContentArrayBuffer = stringToUtf8Bytes(selectedFile.name).buffer;
     }
     
     try {
@@ -268,8 +267,7 @@ const ImportPage: React.FC = () => {
       
       // 使用文件名的哈希值或部分作为文件ID
       const fileId = generateFileId(selectedFile.name);
-      const encoder = new TextEncoder();
-      const idBytes = encoder.encode(fileId);
+      const idBytes = stringToUtf8Bytes(fileId);
       const idLength = idBytes.length;
       
       // 文件大小（字节）转换为KB
@@ -372,7 +370,7 @@ const ImportPage: React.FC = () => {
           } else {
             Taro.hideLoading();
             Taro.showToast({
-              title: '文件发送失败',
+              title: '文件发送失败1',
               icon: 'none',
               duration: 2000
             });
@@ -380,7 +378,7 @@ const ImportPage: React.FC = () => {
         } else {
           Taro.hideLoading();
           Taro.showToast({
-            title: '文件发送失败',
+            title: '文件发送失败2',
             icon: 'none',
             duration: 2000
           });
@@ -391,7 +389,7 @@ const ImportPage: React.FC = () => {
       console.error('发送文件过程出错:', error);
       Taro.hideLoading();
       Taro.showToast({
-        title: `文件发送失败:${error.message}`,
+        title: `文件发送失败: ${error.message}`,
         icon: 'none',
         duration: 2000
       });
@@ -399,6 +397,37 @@ const ImportPage: React.FC = () => {
     }
     
     console.log(`文件 ${selectedFile.name} 发送完成`);
+  };
+  
+  // 辅助函数：将字符串转换为UTF-8字节数组（兼容微信小程序）
+  const stringToUtf8Bytes = (str: string): Uint8Array => {
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      
+      if (code < 0x80) {
+        // 1字节字符
+        bytes.push(code);
+      } else if (code < 0x800) {
+        // 2字节字符
+        bytes.push(0xc0 | (code >> 6));
+        bytes.push(0x80 | (code & 0x3f));
+      } else if (code < 0xd800 || code >= 0xe000) {
+        // 3字节字符
+        bytes.push(0xe0 | (code >> 12));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      } else {
+        // 4字节字符（代理对）
+        i++;
+        code = 0x10000 + (((code & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+        bytes.push(0xf0 | (code >> 18));
+        bytes.push(0x80 | ((code >> 12) & 0x3f));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      }
+    }
+    return new Uint8Array(bytes);
   };
   
   // 辅助函数：生成文件ID

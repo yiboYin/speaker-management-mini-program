@@ -310,6 +310,37 @@ const TaskPage: React.FC = () => {
     }
   };
   
+  // 辅助函数：将字符串转换为UTF-8字节数组（兼容微信小程序）
+  const stringToUtf8Bytes = (str: string): Uint8Array => {
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      
+      if (code < 0x80) {
+        // 1字节字符
+        bytes.push(code);
+      } else if (code < 0x800) {
+        // 2字节字符
+        bytes.push(0xc0 | (code >> 6));
+        bytes.push(0x80 | (code & 0x3f));
+      } else if (code < 0xd800 || code >= 0xe000) {
+        // 3字节字符
+        bytes.push(0xe0 | (code >> 12));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      } else {
+        // 4字节字符（代理对）
+        i++;
+        code = 0x10000 + (((code & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+        bytes.push(0xf0 | (code >> 18));
+        bytes.push(0x80 | ((code >> 12) & 0x3f));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      }
+    }
+    return new Uint8Array(bytes);
+  };
+  
   // 同步任务到设备
   const syncTasksToDevice = async () => {
     try {
@@ -320,8 +351,7 @@ const TaskPage: React.FC = () => {
           // [ID长度][ID][文件ID长度][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
           
           // 计算ID长度和ID的十六进制表示
-          const encoder = new TextEncoder();
-          const idBytes = encoder.encode(task.id);
+          const idBytes = stringToUtf8Bytes(task.id);
           const idLength = idBytes.length;
           const idHex = Array.from(idBytes)
             .map(b => b.toString(16).padStart(2, '0'))
@@ -410,8 +440,7 @@ const TaskPage: React.FC = () => {
           // [ID长度][ID][文件ID长度][文件ID][音量][继电器][间隔时间][启用状态]
           
           // 计算ID长度和ID的十六进制表示
-          const encoder = new TextEncoder();
-          const idBytes = encoder.encode(task.id);
+          const idBytes = stringToUtf8Bytes(task.id);
           const idLength = idBytes.length;
           const idHex = Array.from(idBytes)
             .map(b => b.toString(16).padStart(2, '0'))

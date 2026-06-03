@@ -356,12 +356,42 @@ const SettingPage: React.FC = () => {
     });
   };
   
+  // 辅助函数：将字符串转换为UTF-8字节数组（兼容微信小程序）
+  const stringToUtf8Bytes = (str: string): Uint8Array => {
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      
+      if (code < 0x80) {
+        // 1字节字符
+        bytes.push(code);
+      } else if (code < 0x800) {
+        // 2字节字符
+        bytes.push(0xc0 | (code >> 6));
+        bytes.push(0x80 | (code & 0x3f));
+      } else if (code < 0xd800 || code >= 0xe000) {
+        // 3字节字符
+        bytes.push(0xe0 | (code >> 12));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      } else {
+        // 4字节字符（代理对）
+        i++;
+        code = 0x10000 + (((code & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+        bytes.push(0xf0 | (code >> 18));
+        bytes.push(0x80 | ((code >> 12) & 0x3f));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      }
+    }
+    return new Uint8Array(bytes);
+  };
+  
   const handleSendLed = () => {
     console.log(`发送LED内容: ${ledText}`);
     
     // 将文本转换为UTF-8编码的十六进制字符串
-    const encoder = new TextEncoder(); // 使用TextEncoder将文本转换为UTF-8字节数组
-    const textBytes = encoder.encode(ledText);
+    const textBytes = stringToUtf8Bytes(ledText);
     
     // 计算文本长度（字节数）
     const lengthHex = textBytes.length.toString(16).padStart(2, '0');
