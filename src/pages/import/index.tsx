@@ -39,7 +39,13 @@ const ImportPage: React.FC = () => {
       (Taro as any).chooseMessageFile({
         count: 1, // 只允许选择一个文件
         type: 'file', // 指定类型为文件
-        extension: ['.mp3'], // 限制扩展名为MP3
+        extension: [
+          '.mp3', 'mp3', 
+          '.wav', 'wav', 
+          '.aac', 'aac', 
+          '.m4a', 'm4a', 
+          '.flac', 'flac'
+        ], // 限制扩展名为MP3
         success: (res) => {
           console.log('选择文件成功:', res.tempFiles);
           const mp3Files = res.tempFiles.filter(file => {
