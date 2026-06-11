@@ -337,7 +337,7 @@ export const writeCommandToDeviceWithSplit = async (
   
   try {
     const bytes = new Uint8Array(buffer);
-    const packetSize = 20; // BLE 4.0 最大20字节
+    const packetSize = 16; // BLE 4.0 最大20字节
     const totalPackets = Math.ceil(bytes.length / packetSize);
     
     console.log(`准备分包发送数据，总大小: ${bytes.length} 字节，共 ${totalPackets} 个数据包`);
