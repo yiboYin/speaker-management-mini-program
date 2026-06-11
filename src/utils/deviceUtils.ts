@@ -383,10 +383,15 @@ export const writeCommandToDeviceWithSplit = async (
     for (let i = 0; i < totalPackets; i++) {
       const start = i * packetSize;
       const end = Math.min(start + packetSize, bytes.length);
-      const packet = bytes.slice(start, end);
+      const packetData = bytes.slice(start, end);
+      
+      // 在每个数据包前添加 7E 帧头
+      const packetWithHeader = new Uint8Array(packetData.length + 1);
+      packetWithHeader[0] = 0x7E; // 添加帧头 7E
+      packetWithHeader.set(packetData, 1); // 复制原始数据
       
       // 创建当前数据包的 ArrayBuffer
-      const packetBuffer = packet.buffer;
+      const packetBuffer = packetWithHeader.buffer;
       
       let success = false;
       let attemptCount = 0;

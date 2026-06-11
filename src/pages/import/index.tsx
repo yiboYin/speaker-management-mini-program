@@ -34,7 +34,7 @@ const ImportPage: React.FC = () => {
   };
   
   const selectFiles = () => {
-    // 使用Taro.chooseMessageFile选择文件，限制为MP3格式
+    // 使用Taro.chooseMessageFile选择文件
     if ((Taro as any).chooseMessageFile) {
       (Taro as any).chooseMessageFile({
         count: 1, // 只允许选择一个文件
@@ -66,6 +66,7 @@ const ImportPage: React.FC = () => {
                 id: 'new_' + Date.now() + '_' + index,
                 name: file.name,
                 size: fileSizeMB,
+                sizeInBytes: file.size, // 保存原始字节数
                 date: dateStr,
                 duration: '--:--', // 从文件选择器获取的文件通常不包含时长信息
                 path: file.path || file.filePath || file.tempFilePath // 记录文件路径
@@ -276,8 +277,10 @@ const ImportPage: React.FC = () => {
       const idBytes = stringToUtf8Bytes(fileId);
       const idLength = idBytes.length;
       
-      // 文件大小（字节）转换为KB
-      const fileSizeInKB = Math.ceil((selectedFile.size || 0) / 1024);
+      // 使用文件的原始字节数
+      const fileSizeInBytes = selectedFile.sizeInBytes || 0;
+      console.log('文件大小（字节）:', fileSizeInBytes);
+      const fileSizeInKB = Math.ceil(fileSizeInBytes / 1024);
       const sizeBytes = [
         (fileSizeInKB >> 24) & 0xFF,
         (fileSizeInKB >> 16) & 0xFF,
@@ -298,14 +301,53 @@ const ImportPage: React.FC = () => {
       
       console.log('发送开始传输及文件信息:', fileInfoCommand);
       Taro.showToast({
-        title: `发送开始传输及文件信息:${fileInfoCommand}`,
+        title: `发送开始传输及文件信息`,
         icon: 'none',
         duration: 1000
       });
-      await sendCommandToDevice(fileInfoCommand, (data) => {
-        console.log('开始传输及文件信息响应:', data);
-        return false;
+      
+      // 等待设备应答确认
+      const startTransferAck = await new Promise<boolean>((resolve, reject) => {
+        let timeoutId: any;
+        
+        sendCommandToDevice(fileInfoCommand, (data) => {
+          console.log('开始传输及文件信息响应:', data);
+          
+          // 清除超时定时器
+          if (timeoutId) clearTimeout(timeoutId);
+          
+          // 检查应答是否成功
+          if (data && data.resValue && data.resValue.length >= 4) {
+            const responseCmd = data.resValue[1];
+            const result = data.resValue[data.resValue.length - 1];
+            
+            if (result === RESULT_CODES.SUCCESS) {
+              console.log('设备确认可以开始传输');
+              resolve(true);
+            } else {
+              console.error('设备拒绝传输');
+              resolve(false);
+            }
+          } else {
+            console.warn('收到无效应答');
+            resolve(false);
+          }
+          
+          return false; // 取消监听
+        });
+        
+        // 设置超时保护（5秒）
+        timeoutId = setTimeout(() => {
+          console.error('等待设备应答超时');
+          reject(new Error('等待设备应答超时'));
+        }, 5000);
       });
+      
+      if (!startTransferAck) {
+        throw new Error('设备未确认开始传输');
+      }
+      
+      console.log('收到设备确认，开始发送文件内容');
       
       // 第三步：发送文件内容（分包发送）
       if (fileContentArrayBuffer && fileContentArrayBuffer.byteLength > 0) {
