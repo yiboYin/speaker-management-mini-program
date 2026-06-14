@@ -273,6 +273,7 @@ const ImportPage: React.FC = () => {
       // 格式: 7E 02 33 [ID长度] [ID] [大小] EF
       
       // 使用文件名的哈希值或部分作为文件ID
+      console.log('selectedFile.name:', selectedFile.name);
       const fileId = generateFileId(selectedFile.name);
       const idBytes = stringToUtf8Bytes(fileId);
       const idLength = idBytes.length;
