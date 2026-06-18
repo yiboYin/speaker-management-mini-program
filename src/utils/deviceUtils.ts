@@ -335,21 +335,26 @@ export const writeCommandToDeviceWithSplit = async (
     throw new Error('未找到通知特征UUID，无法接收设备应答');
   }
   
+  // 标记监听器是否已注册（在try块外声明，确保catch块也能访问）
+  let listenerRegistered = false;
+  
   try {
     const bytes = new Uint8Array(buffer);
-    const packetSize = 16; // BLE 4.0 最大20字节
-    const totalPackets = Math.ceil(bytes.length / packetSize);
+    const maxDataPerPacket = 256; // 每包固定256字节数据
+    const packetTotalSize = 1 + 2 + maxDataPerPacket + 1; // 帧头(1) + 帧序号(2) + 数据(256) + 校验位(1) = 260字节
     
-    console.log(`准备分包发送数据，总大小: ${bytes.length} 字节，共 ${totalPackets} 个数据包`);
+    console.log(`准备分包发送数据:`, {
+      原始数据大小: bytes.length,
+      每包数据量: maxDataPerPacket,
+      包总长度: packetTotalSize,
+      预计包数: Math.ceil(bytes.length / maxDataPerPacket)
+    });
     
     Taro.showToast({
-      title: `准备发送 ${totalPackets} 个数据包`,
+      title: `开始传输 ${bytes.length} 字节`,
       icon: 'none',
       duration: 1500
     });
-    
-    // 标记监听器是否已注册
-    let listenerRegistered = false;
     
     // 定义应答等待的变量
     let resolveAck: (value: boolean) => void;
@@ -381,64 +386,131 @@ export const writeCommandToDeviceWithSplit = async (
     Taro.onBLECharacteristicValueChange(handleCharacteristicValueChange);
     listenerRegistered = true; // 标记监听器已注册
     
-    for (let i = 0; i < totalPackets; i++) {
-      const start = i * packetSize;
-      const end = Math.min(start + packetSize, bytes.length);
-      const packetData = bytes.slice(start, end);
+    // 使用 while 循环，基于已发送字节数判断是否完成
+    let sentBytes = 0; // 已发送的字节数
+    let packetIndex = 0; // 包索引，从0开始
+    
+    // 获取平台信息，用于差异化处理
+    const platform = Taro.getSystemInfoSync().platform;
+    const isAndroid = platform === 'android';
+    const retryDelay = isAndroid ? 250 : 50; // Android重试延迟250ms，其他平台50ms
+    const maxRetries = 3; // 最大重试次数
+    
+    while (sentBytes < bytes.length) {
+      // 计算当前包的实际数据起始和结束位置
+      const dataStart = sentBytes;
+      const dataEnd = Math.min(dataStart + maxDataPerPacket, bytes.length);
+      const packetData = bytes.slice(dataStart, dataEnd);
       
-      // 在每个数据包前添加 7E 帧头
-      const packetWithHeader = new Uint8Array(packetData.length + 1);
-      packetWithHeader[0] = 0x7E; // 添加帧头 7E
-      packetWithHeader.set(packetData, 1); // 复制原始数据
+      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度) + 校验位(1)
+      const packetTotalSize = 1 + 2 + packetData.length + 1; // 根据实际数据长度动态计算
+      const packetWithHeader = new Uint8Array(packetTotalSize);
+      
+      // 帧头
+      packetWithHeader[0] = 0x7E;
+      
+      // 帧序号（2字节，大端序）
+      packetWithHeader[1] = (packetIndex >> 8) & 0xFF;   // 高字节
+      packetWithHeader[2] = packetIndex & 0xFF;           // 低字节
+      
+      // 数据主体（实际长度）
+      packetWithHeader.set(packetData, 3);
+      
+      // 计算校验位：所有字节相加取低8位
+      let checksum = 0;
+      for (let i = 0; i < packetTotalSize - 1; i++) {
+        checksum += packetWithHeader[i];
+      }
+      packetWithHeader[packetTotalSize - 1] = checksum & 0xFF;
       
       // 创建当前数据包的 ArrayBuffer
       const packetBuffer = packetWithHeader.buffer;
       
-      try {
-        // 为当前包创建应答等待 Promise
-        ackPromise = new Promise<boolean>((resolve, reject) => {
-          resolveAck = resolve;
+      console.log(`第 ${packetIndex + 1} 个数据包结构:`, {
+        帧头: '0x7E',
+        帧序号: packetIndex,
+        实际数据长度: packetData.length,
+        总长度: packetTotalSize,
+        校验位: `0x${(checksum & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`,
+        已发送字节: sentBytes,
+        剩余字节: bytes.length - sentBytes
+      });
+      
+      // 打印完整的包数据（十六进制）
+      const hexStr = Array.from(packetWithHeader)
+        .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
+        .join(' ');
+      console.log(`第 ${packetIndex + 1} 个数据包内容 (HEX):`, hexStr);
+      console.log(`第 ${packetIndex + 1} 个数据包 buffer:`, packetBuffer);
+      
+      // 重试逻辑：最多重试 maxRetries 次
+      let retryCount = 0;
+      let sendSuccess = false;
+      
+      while (retryCount < maxRetries && !sendSuccess) {
+        try {
+          // 为当前包创建应答等待 Promise
+          ackPromise = new Promise<boolean>((resolve, reject) => {
+            resolveAck = resolve;
+            
+            // 设置超时保护
+            setTimeout(() => {
+              reject(new Error(`第 ${packetIndex + 1} 个数据包等待应答超时 (${timeoutMs}ms)`));
+            }, timeoutMs);
+          });
           
-          // 设置超时保护
-          setTimeout(() => {
-            reject(new Error(`第 ${i + 1}/${totalPackets} 个数据包等待应答超时 (${timeoutMs}ms)`));
-          }, timeoutMs);
-        });
-        
-        // 发送数据包
-        await Taro.writeBLECharacteristicValue({
-          deviceId,
-          serviceId: serviceUUID,
-          characteristicId: writeUUID,
-          value: packetBuffer
-        });
-        
-        console.log(`第 ${i + 1}/${totalPackets} 个数据包已发送，等待设备应答...`);
-        
-        // 等待设备应答
-        const ackResult = await ackPromise;
-        
-        if (ackResult) {
-          console.log(`第 ${i + 1}/${totalPackets} 个数据包应答成功`);
+          // 发送数据包
+          await Taro.writeBLECharacteristicValue({
+            deviceId,
+            serviceId: serviceUUID,
+            characteristicId: writeUUID,
+            value: packetBuffer
+          });
           
-          // 收到应答后，延迟一下再发送下一个包（给设备处理时间）
-          if (i < totalPackets - 1) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+          console.log(`第 ${packetIndex + 1} 个数据包已发送（尝试 ${retryCount + 1}/${maxRetries}），等待设备应答...`);
+          
+          // 等待设备应答
+          const ackResult = await ackPromise;
+          
+          if (ackResult) {
+            console.log(`第 ${packetIndex + 1} 个数据包应答成功`);
+            sendSuccess = true;
+            
+            // 更新已发送字节数
+            sentBytes += packetData.length;
+            
+            // 收到应答后，延迟一下再发送下一个包（给设备处理时间）
+            if (sentBytes < bytes.length) {
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+          } else {
+            console.warn(`第 ${packetIndex + 1} 个数据包收到失败应答`);
+            throw new Error('设备返回失败应答');
           }
-        } else {
-          console.warn(`第 ${i + 1}/${totalPackets} 个数据包收到失败应答`);
-          throw new Error('设备返回失败应答');
+        } catch (error) {
+          retryCount++;
+          console.error(`第 ${packetIndex + 1} 个数据包发送/应答失败（尝试 ${retryCount}/${maxRetries}）`, error);
+          
+          // 如果还有重试机会，等待后重试
+          if (retryCount < maxRetries) {
+            console.log(`${retryDelay}ms 后重试...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          } else {
+            // 达到最大重试次数，抛出错误
+            console.error(`第 ${packetIndex + 1} 个数据包已达到最大重试次数，发送失败`);
+            throw error;
+          }
         }
-      } catch (error) {
-        console.error(`第 ${i + 1}/${totalPackets} 个数据包发送/应答失败`, error);
-        throw error; // 直接抛出错误，不重试
       }
       
       // 发送进度回调
       if (onProgress) {
-        const progress = Math.round(((i + 1) / totalPackets) * 100);
+        const progress = Math.round((sentBytes / bytes.length) * 100);
         onProgress(progress);
       }
+      
+      // 包索引递增
+      packetIndex++;
     }
     
     // 所有包发送完成，取消监听
@@ -450,6 +522,15 @@ export const writeCommandToDeviceWithSplit = async (
   } catch (error) {
     console.error('分包发送数据失败:', error);
     // 发生错误时也取消监听，避免内存泄漏
+    
+    // 显示错误提示
+    const errorMessage = error instanceof Error ? error.message : error;
+    Taro.showToast({
+      title: `传输失败: ${errorMessage}`,
+      icon: 'none',
+      duration: 2000
+    });
+    
     if (listenerRegistered) {
       Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     }

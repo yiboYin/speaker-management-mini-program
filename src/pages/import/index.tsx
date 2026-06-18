@@ -479,16 +479,11 @@ const ImportPage: React.FC = () => {
     return new Uint8Array(bytes);
   };
   
-  // 辅助函数：生成文件ID
+  // 辅助函数：生成文件ID（4位随机数字）
   const generateFileId = (fileName: string): string => {
-    // 简单的哈希函数来生成ID
-    let hash = 0;
-    for (let i = 0; i < fileName.length; i++) {
-      const char = fileName.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // 转换为32位整数
-    }
-    return Math.abs(hash).toString();
+    // 生成4位随机数字（0000-9999）
+    const randomNum = Math.floor(Math.random() * 10000);
+    return randomNum.toString().padStart(4, '0');
   };
   
   // 辅助函数：将字符串转换为十六进制
