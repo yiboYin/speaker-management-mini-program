@@ -1,5 +1,6 @@
 import Taro, { getStorageSync } from '@tarojs/taro';
 import { Device } from '../types/device';
+import { FILE_COMMANDS } from '@/constants/bluetoothCommands';
 
 // 获取连接设备的函数
 export const getConnectedDevice = (): Device | null => {
@@ -337,6 +338,8 @@ export const writeCommandToDeviceWithSplit = async (
   
   // 标记监听器是否已注册（在try块外声明，确保catch块也能访问）
   let listenerRegistered = false;
+  // 监听器函数引用（在try块外声明，确保catch块也能访问）
+  let handleCharacteristicValueChange: ((result: any) => void) | null = null;
   
   try {
     const bytes = new Uint8Array(buffer);
@@ -361,7 +364,7 @@ export const writeCommandToDeviceWithSplit = async (
     let ackPromise: Promise<boolean>;
     
     // 创建特征值变化的监听器
-    const handleCharacteristicValueChange = (result: any) => {
+    handleCharacteristicValueChange = (result: any) => {
       // 检查是否是目标设备的应答
       if (result.deviceId === deviceId && 
           result.serviceId === serviceUUID && 
@@ -514,15 +517,36 @@ export const writeCommandToDeviceWithSplit = async (
     }
     
     // 所有包发送完成，取消监听
-    if (listenerRegistered) {
+    if (listenerRegistered && handleCharacteristicValueChange) {
       Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     }
     console.log('所有数据包发送完成');
     return true;
   } catch (error) {
     console.error('分包发送数据失败:', error);
-    // 发生错误时也取消监听，避免内存泄漏
-    
+
+    // 1. 先取消监听（避免后面发送结束指令时再次触发 notify 回调）
+    if (listenerRegistered && handleCharacteristicValueChange) {
+      Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
+      listenerRegistered = false;
+    }
+
+    // 2. 通知设备终止本次传输，不再接收后续数据包
+    // 使用直接写入，不再注册新的监听，也忽略设备可能的返回
+    try {
+      const endBuffer = hexStringToArrayBuffer(FILE_COMMANDS.END_FILE_TRANSFER);
+      await Taro.writeBLECharacteristicValue({
+        deviceId,
+        serviceId: serviceUUID,
+        characteristicId: writeUUID,
+        value: endBuffer
+      });
+      console.log('已向设备发送传输结束指令(异常终止)');
+    } catch (endError) {
+      // 结束指令发送失败不影响主错误的上报，仅记录日志
+      console.error('发送异常终止指令失败:', endError);
+    }
+
     // 显示错误提示
     const errorMessage = error instanceof Error ? error.message : error;
     Taro.showToast({
@@ -530,10 +554,7 @@ export const writeCommandToDeviceWithSplit = async (
       icon: 'none',
       duration: 2000
     });
-    
-    if (listenerRegistered) {
-      Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
-    }
+
     return false;
   }
 };
