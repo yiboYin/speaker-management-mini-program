@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button, Slider, Switch, Picker, Input } from '@tarojs/components';
 import Taro, { useLoad } from '@tarojs/taro';
+import FileSelectorModal from '@/components/FileSelectorModal';
 import './index.scss';
 
 interface Task {
@@ -19,12 +20,17 @@ const ScheduleEditPage: React.FC = () => {
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // 区分编辑和新增模式
   const [taskId, setTaskId] = useState<string>(''); // 存储任务ID
-  // 定义备选文件列表
+  
+  // 文件选择弹窗相关状态
+  const [showFileModal, setShowFileModal] = useState(false); // 是否显示文件选择弹窗
+  const [selectedFileId, setSelectedFileId] = useState<string>(''); // 当前选中的文件ID
+  
+  // 定义备选文件列表（模拟从导入页面获取）
   const availableFiles = [
-    { name: '音频1.mp3', path: '/path/to/audio1.mp3' },
-    { name: '音频2.mp3', path: '/path/to/audio2.mp3' },
-    { name: '音频3.mp3', path: '/path/to/audio3.mp3' },
-    { name: '音频4.mp3', path: '/path/to/audio4.mp3' }
+    { id: 'file_1', name: '0001.mp3', path: '/path/to/audio1.mp3', duration: '00:30' },
+    { id: 'file_2', name: '0002.mp3', path: '/path/to/audio2.mp3', duration: '00:45' },
+    { id: 'file_3', name: '0003.mp3', path: '/path/to/audio3.mp3', duration: '01:00' },
+    { id: 'file_4', name: '0004.mp3', path: '/path/to/audio4.mp3', duration: '00:20' }
   ];
   
   const [scheduleData, setScheduleData] = useState<{
@@ -46,6 +52,13 @@ const ScheduleEditPage: React.FC = () => {
     startTime: '00:00',
     endTime: '23:59'
   });
+  
+  // 初始化时设置默认选中文件
+  useEffect(() => {
+    if (availableFiles.length > 0) {
+      setSelectedFileId(availableFiles[0].id);
+    }
+  }, []);
   
   useLoad((options) => {
     // 如果URL中有任务数据，则解析并初始化页面
@@ -96,6 +109,43 @@ const ScheduleEditPage: React.FC = () => {
     }
   };
   
+  // 打开文件选择弹窗
+  const openFileModal = () => {
+    setShowFileModal(true);
+    // 设置当前选中的文件为已选择的文件
+    const currentFile = availableFiles.find(f => f.name === scheduleData.fileName);
+    if (currentFile) {
+      setSelectedFileId(currentFile.id);
+    }
+  };
+  
+  // 关闭文件选择弹窗
+  const closeFileModal = () => {
+    setShowFileModal(false);
+  };
+  
+  // 选中文件（单选）
+  const selectFile = (fileId: string) => {
+    setSelectedFileId(fileId);
+  };
+  
+  // 确认选择文件
+  const confirmFileSelection = () => {
+    const selectedFile = availableFiles.find(f => f.id === selectedFileId);
+    if (selectedFile) {
+      setScheduleData({
+        ...scheduleData,
+        fileName: selectedFile.name,
+        filePath: selectedFile.path
+      });
+      closeFileModal();
+      Taro.showToast({
+        title: '已选择文件',
+        icon: 'success'
+      });
+    }
+  };
+  
   const { selectedDays, volume, relayEnabled, startTime, endTime } = scheduleData;
   
   return (
@@ -113,22 +163,10 @@ const ScheduleEditPage: React.FC = () => {
         
         <View className="form-item">
           <Text className="label">音频</Text>
-          <Picker 
-            mode="selector"
-            range={availableFiles.map(file => file.name)}
-            onChange={(e) => {
-              const selectedFile = availableFiles[e.detail.value];
-              setScheduleData({
-                ...scheduleData, 
-                fileName: selectedFile.name,
-                filePath: selectedFile.path
-              });
-            }}
-          >
-            <View className="file-picker">
-              {scheduleData.fileName || '请选择文件'}
-            </View>
-          </Picker>
+          <View className="file-picker" onClick={openFileModal}>
+            {scheduleData.fileName || '请选择文件'}
+            <Text className="arrow-icon">›</Text>
+          </View>
         </View>
         
         <View className="form-item">
@@ -195,6 +233,16 @@ const ScheduleEditPage: React.FC = () => {
           </Picker>
         </View>
       </View>
+      
+      {/* 文件选择弹窗 */}
+      <FileSelectorModal
+        visible={showFileModal}
+        selectedFileId={selectedFileId}
+        onSelect={selectFile}
+        onConfirm={confirmFileSelection}
+        onCancel={closeFileModal}
+      />
+      
       <View className="bottom-button-container">
         <Button 
           className="confirm-button" 

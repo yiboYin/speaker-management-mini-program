@@ -1,0 +1,241 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, Button, ScrollView } from '@tarojs/components';
+import Taro from '@tarojs/taro';
+import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES } from '@/constants/bluetoothCommands';
+import './index.scss';
+
+interface FileItem {
+  id: string;
+  name: string;
+  path: string;
+  duration: string;
+}
+
+interface FileSelectorModalProps {
+  visible: boolean;
+  selectedFileId: string;
+  onSelect: (fileId: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
+  visible,
+  selectedFileId,
+  onSelect,
+  onConfirm,
+  onCancel
+}) => {
+  const [previewingFileId, setPreviewingFileId] = useState<string>(''); // 正在预览的文件ID
+  const [files, setFiles] = useState<FileItem[]>([]); // 文件列表
+  const [loading, setLoading] = useState(false); // 加载状态
+  
+  // 获取文件列表
+  const fetchFileList = async () => {
+    if (loading) return; // 防止重复请求
+    
+    setLoading(true);
+    console.log('开始获取文件列表...');
+    
+    try {
+      const fileList: FileItem[] = [];
+      let fileIndex = 1;
+      
+      // 发送读取文件列表指令
+      await sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
+        console.log('接收到的数据:', data);
+        
+        // 检查是否是文件列表项
+        if (data.resValue && data.resValue.length >= 3) {
+          const responseCmd = data.resValue[1]; // 响应命令码
+          
+          // 如果是文件列表项（0x31）
+          if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
+            // 解析文件数据
+            // 格式: 7E [整体长度] 02 02 31 [文件数据]
+            // 文件数据包含：文件名、时长等信息
+            // 这里需要根据实际协议解析，暂时使用模拟数据
+            
+            const fileId = `file_${String(fileIndex).padStart(2, '0')}`;
+            const fileName = `${String(fileIndex).padStart(4, '0')}.mp3`;
+            const duration = '00:30'; // 默认时长，实际应从设备返回中解析
+            
+            fileList.push({
+              id: fileId,
+              name: fileName,
+              path: '', // 硬件文件不需要本地路径
+              duration: duration
+            });
+            
+            fileIndex++;
+          }
+          // 如果是结束指令（0x32）
+          else if (responseCmd === RESPONSE_CODES.FILE_LIST_END) {
+            console.log('文件列表获取完成，共', fileList.length, '个文件');
+            setFiles(fileList);
+            setLoading(false);
+            
+            if (fileList.length === 0) {
+              Taro.showToast({
+                title: '暂无文件',
+                icon: 'none'
+              });
+            }
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('获取文件列表失败:', error);
+      setLoading(false);
+      Taro.showToast({
+        title: '获取文件列表失败',
+        icon: 'none'
+      });
+    }
+  };
+
+  // 试听音频（发送指令给硬件设备播放）
+  const playAudio = async (fileId: string, filePath: string) => {
+    // 如果正在预览同一个文件，则停止
+    if (previewingFileId === fileId) {
+      stopPreview();
+      return;
+    }
+    
+    // 停止之前的预览
+    stopPreview();
+    
+    try {
+      console.log('发送试听指令到硬件设备:', { fileId, filePath });
+      
+      // 提取文件ID的最后两位作为播放指令的参数
+      // 例如：file_1 -> '01', file_2 -> '02'
+      const fileIndex = fileId.split('_')[1] || '01';
+      const paddedIndex = fileIndex.padStart(2, '0'); // 确保是两位数
+      
+      // 构造播放指定文件的指令
+      const playCommand = CONTROL_COMMANDS.PLAY_FILE(paddedIndex);
+      
+      console.log('播放指令:', playCommand);
+      
+      // 发送蓝牙指令到设备
+      await sendCommandToDevice(playCommand, (data) => {
+        console.log('设备响应:', data);
+        // TODO: 根据响应判断是否成功
+      });
+      
+      setPreviewingFileId(fileId);
+      
+      Taro.showToast({
+        title: '已发送试听指令',
+        icon: 'success'
+      });
+      
+      // 模拟播放结束（实际应该监听硬件返回的状态）
+      setTimeout(() => {
+        setPreviewingFileId('');
+      }, 5000); // 假设播放5秒后自动结束
+      
+    } catch (error) {
+      console.error('发送试听指令失败:', error);
+      Taro.showToast({
+        title: '发送指令失败',
+        icon: 'none'
+      });
+    }
+  };
+  
+  // 停止预览
+  const stopPreview = async () => {
+    if (previewingFileId) {
+      try {
+        console.log('发送停止指令到硬件设备');
+        
+        // 发送停止播放指令
+        await sendCommandToDevice(CONTROL_COMMANDS.STOP_PLAY, (data) => {
+          console.log('停止响应:', data);
+        });
+        
+        setPreviewingFileId('');
+        
+        Taro.showToast({
+          title: '已停止播放',
+          icon: 'none'
+        });
+      } catch (error) {
+        console.error('发送停止指令失败:', error);
+      }
+    }
+  };
+  
+  // 监听弹窗显示状态，每次打开时获取文件列表
+  useEffect(() => {
+    if (visible && files.length === 0) {
+      // 弹窗打开且文件列表为空时，获取文件列表
+      fetchFileList();
+    } else if (!visible) {
+      // 弹窗关闭时，清空文件列表和预览状态
+      setFiles([]);
+      setPreviewingFileId('');
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View className="file-modal-overlay" onClick={onCancel}>
+      <View className="file-modal" onClick={(e) => e.stopPropagation()}>
+        <View className="modal-header">
+          <Text className="modal-title">选择音频文件</Text>
+          <Text className="close-btn" onClick={onCancel}>×</Text>
+        </View>
+        
+        <ScrollView className="file-list" scrollY>
+          {loading ? (
+            <View className="loading-container">
+              <Text className="loading-text">正在获取文件列表...</Text>
+            </View>
+          ) : files.length === 0 ? (
+            <View className="empty-container">
+              <Text className="empty-text">暂无文件</Text>
+            </View>
+          ) : (
+            files.map((file) => (
+              <View 
+                key={file.id}
+                className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`}
+                onClick={() => onSelect(file.id)}
+              >
+                <View className="file-info">
+                  <Text className="file-name">{file.name}</Text>
+                  <Text className="file-duration">{file.duration}</Text>
+                </View>
+                
+                <View className="file-actions">
+                  <Button 
+                    className={`action-btn preview-btn ${previewingFileId === file.id ? 'playing' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playAudio(file.id, file.path);
+                    }}
+                  >
+                    {previewingFileId === file.id ? '停止' : '试听'}
+                  </Button>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+        
+        <View className="modal-footer">
+          <Button className="cancel-btn" onClick={onCancel}>取消</Button>
+          <Button className="confirm-btn" onClick={onConfirm}>选择</Button>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+export default FileSelectorModal;

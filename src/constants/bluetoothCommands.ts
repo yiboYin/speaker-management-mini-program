@@ -32,6 +32,10 @@ export const CONTROL_COMMANDS = {
   PLAY_PAUSE: '7E 03 01 02 08',
   NEXT: '7E 03 01 02 09',
   
+  // 文件播放（用于试听）
+  PLAY_FILE: (fileId: string) => `7E 04 01 02 0C ${fileId}`, // 0C = 播放指定文件
+  STOP_PLAY: '7E 03 01 02 0D', // 0D = 停止播放
+  
   // 音量控制
   VOLUME_UP: '7E 03 01 02 0A',
   VOLUME_DOWN: '7E 03 01 02 0B',

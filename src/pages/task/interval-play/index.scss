@@ -46,7 +46,28 @@
     .file-picker {
       width: 100%;
       text-align: right;
-      font-size: 18px;
+      font-size: 28px;
+      color: #333;
+      padding: 10px 15px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      border: 2px solid #b3d4ff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.3s;
+      
+      &:active {
+        background-color: #f0f7ff;
+        transform: scale(0.98);
+      }
+      
+      .arrow-icon {
+        font-size: 32px;
+        color: #999;
+        margin-left: 10px;
+      }
     }
     
     .slider-container {
