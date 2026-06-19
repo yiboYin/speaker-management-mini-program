@@ -339,8 +339,12 @@ export const writeCommandToDeviceWithSplit = async (
   let listenerRegistered = false;
   
   try {
+    // 开启屏幕常亮，防止传输过程中息屏导致连接断开
+    await Taro.setKeepScreenOn({ keepScreenOn: true });
+    console.log('已开启屏幕常亮');
+    
     const bytes = new Uint8Array(buffer);
-    const maxDataPerPacket = 256; // 每包固定256字节数据
+    const maxDataPerPacket = 16; // 每包固定128字节数据
     const packetTotalSize = 1 + 2 + maxDataPerPacket + 1; // 帧头(1) + 帧序号(2) + 数据(256) + 校验位(1) = 260字节
     
     console.log(`准备分包发送数据:`, {
@@ -535,5 +539,13 @@ export const writeCommandToDeviceWithSplit = async (
       Taro.offBLECharacteristicValueChange(handleCharacteristicValueChange);
     }
     return false;
+  } finally {
+    // 无论成功或失败，都要关闭屏幕常亮
+    try {
+      await Taro.setKeepScreenOn({ keepScreenOn: false });
+      console.log('已关闭屏幕常亮');
+    } catch (keepScreenError) {
+      console.error('关闭屏幕常亮失败:', keepScreenError);
+    }
   }
 };

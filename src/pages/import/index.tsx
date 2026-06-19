@@ -54,7 +54,25 @@ const ImportPage: React.FC = () => {
           });
           
           if (mp3Files.length > 0) {
-            const newFiles = mp3Files.map((file, index) => {
+            // 检查文件大小，限制为1MB以内
+            const validFiles = mp3Files.filter(file => {
+              const maxSize = 1 * 1024 * 1024; // 1MB = 1048576字节
+              if (file.size > maxSize) {
+                Taro.showToast({
+                  title: `文件 ${file.name} 超过1MB限制`,
+                  icon: 'none',
+                  duration: 2000
+                });
+                return false;
+              }
+              return true;
+            });
+            
+            if (validFiles.length === 0) {
+              return;
+            }
+            
+            const newFiles = validFiles.map((file, index) => {
               const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1) + 'MB';
               const now = new Date();
               const year = now.getFullYear();
