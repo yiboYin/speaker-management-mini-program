@@ -377,10 +377,30 @@ export const writeCommandToDeviceWithSplit = async (
         const resValue = new Uint8Array(result.value, 0);
         console.log('收到设备应答:', resValue);
         
-        // 根据协议判断应答是否成功
-        // 这里假设：只要收到应答且长度>0就认为成功
-        // 实际项目中应根据具体协议调整判断逻辑
-        const isSuccess = resValue.length > 0;
+        // 根据协议严格判断应答是否成功
+        // 成功的应答格式: 7E 04 02 02 36 01
+        // - 7E: 帧头
+        // - 04: 整体长度
+        // - 02: 方向标识（上行，设备发给手机）
+        // - 02: 固定值
+        // - 36: 命令码（文件传输确认）
+        // - 01: 结果码（成功）
+        let isSuccess = false;
+        
+        if (resValue.length === 6 && 
+            resValue[0] === 0x7E &&  // 帧头
+            resValue[1] === 0x04 &&  // 整体长度
+            resValue[2] === 0x02 &&  // 方向标识（上行）
+            resValue[3] === 0x02 &&  // 固定值
+            resValue[4] === 0x36 &&  // 命令码（文件传输确认）
+            resValue[5] === 0x01) {  // 结果码（成功）
+          isSuccess = true;
+          console.log('设备应答验证通过：文件传输确认成功');
+        } else {
+          console.warn('设备应答验证失败，期望: 7E 04 02 02 36 01, 实际:', 
+            Array.from(resValue).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' '));
+          isSuccess = false;
+        }
         
         // 解析等待中的 Promise
         if (resolveAck) {
@@ -479,6 +499,8 @@ export const writeCommandToDeviceWithSplit = async (
           // 等待设备应答
           const ackResult = await ackPromise;
           
+          // ackResult 由监听器中的严格校验决定
+          // 只有收到 7E 04 02 02 36 01 才为 true，其他情况均为 false
           if (ackResult) {
             console.log(`第 ${packetIndex + 1} 个数据包应答成功`);
             sendSuccess = true;
@@ -491,7 +513,7 @@ export const writeCommandToDeviceWithSplit = async (
               await new Promise(resolve => setTimeout(resolve, delayMs));
             }
           } else {
-            console.warn(`第 ${packetIndex + 1} 个数据包收到失败应答`);
+            console.warn(`第 ${packetIndex + 1} 个数据包收到失败应答（应答码不符合预期）`);
             throw new Error('设备返回失败应答');
           }
         } catch (error) {
