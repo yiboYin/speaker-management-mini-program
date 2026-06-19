@@ -347,7 +347,7 @@ export const writeCommandToDeviceWithSplit = async (
     console.log('已开启屏幕常亮');
     
     const bytes = new Uint8Array(buffer);
-    const maxDataPerPacket = 16; // 每包固定128字节数据
+    const maxDataPerPacket = 128; // 每包固定128字节数据
     const packetTotalSize = 1 + 2 + maxDataPerPacket + 1; // 帧头(1) + 帧序号(2) + 数据(256) + 校验位(1) = 260字节
     
     console.log(`准备分包发送数据:`, {

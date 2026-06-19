@@ -20,6 +20,39 @@ const ImportPage: React.FC = () => {
   // 组件挂载时加载文件列表
   useEffect(() => {
     loadFileList();
+    
+    // 监听来自合成页面的事件 - 使用全局事件总线
+    Taro.eventCenter.on('synthesisComplete', (data: any) => {
+      console.log('收到合成的音频:', data);
+      
+      // 将合成的音频添加到文件列表
+      const newFile = {
+        id: 'synth_' + Date.now(),
+        name: data.fileName,
+        size: '--', // 合成文件的大小暂时不显示
+        sizeInBytes: 0,
+        date: new Date().toISOString().split('T')[0],
+        duration: data.duration || '--:--',
+        path: data.filePath,
+        isSynthesized: true, // 标记为合成文件
+        text: data.text // 保存合成文本
+      };
+      
+      setFileList(prevList => [newFile, ...prevList]);
+      
+      // 自动选中新添加的文件
+      setSelectedFileId(newFile.id);
+      
+      Taro.showToast({
+        title: '已添加合成音频',
+        icon: 'success'
+      });
+    });
+    
+    // 组件卸载时清理事件监听
+    return () => {
+      Taro.eventCenter.off('synthesisComplete');
+    };
   }, []);
   
   const loadFileList = () => {
@@ -554,7 +587,10 @@ const ImportPage: React.FC = () => {
             className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`} 
             onClick={() => setSelectedFileId(file.id)}
           >
-            <Text className="file-name">{file.name} ({file.date})</Text>
+            <Text className="file-name">
+              {file.isSynthesized && <Text className="synth-tag">[合成]</Text>}
+              {file.name} ({file.date})
+            </Text>
             <Text className="file-duration">{file.duration}</Text>
             <Button 
               className="delete-btn" 
