@@ -191,7 +191,7 @@ const ConnectionPage: React.FC = () => {
   };
   
     // 获取设备服务和特征值信息并更新全局变量
-  const getDeviceServicesAndCharacteristics = (device: Device) => {
+  const getDeviceServicesAndCharacteristics = (device: Device, callback?: () => void) => {
     // 获取设备的所有服务
     Taro.getBLEDeviceServices({
       deviceId: device.deviceId,
@@ -256,6 +256,11 @@ const ConnectionPage: React.FC = () => {
                 filterDeviceName: device.name || device.localName || '',
                 deviceId: device.deviceId
               });
+              
+              // 服务信息获取成功后，执行回调
+              if (callback) {
+                callback();
+              }
             },
             fail: (charErr) => {
               console.error('获取服务特征值失败:', charErr);
@@ -265,6 +270,11 @@ const ConnectionPage: React.FC = () => {
               setFilterServiceUUID(firstNonSystemService.uuid);
               setFilterDeviceName(device.name || device.localName || '');
               setDeviceId(device.deviceId);
+              
+              // 执行回调
+              if (callback) {
+                callback();
+              }
             }
           });
         } else {
@@ -274,11 +284,21 @@ const ConnectionPage: React.FC = () => {
             setFilterServiceUUID(firstService.uuid);
             setFilterDeviceName(device.name || device.localName || '');
             setDeviceId(device.deviceId);
+            
+            // 执行回调
+            if (callback) {
+              callback();
+            }
           }
         }
       },
       fail: (servicesErr) => {
         console.error('获取设备服务失败:', servicesErr);
+        
+        // 执行回调
+        if (callback) {
+          callback();
+        }
       }
     });
   };
@@ -312,23 +332,23 @@ const ConnectionPage: React.FC = () => {
         // 清空可用设备列表
         setAvailableDevices([]);
         
-        // 获取设备的服务和特征值信息
-        getDeviceServicesAndCharacteristics(device);
-        
-        // 连接成功后发送当前时间到设备
-        sendCurrentTimeToDevice().then((success) => {
-          if (success) {
-            console.log('时间同步成功');
-            Taro.showToast({
-              title: '时间同步成功',
-              icon: 'success',
-              duration: 1500
-            });
-          } else {
-            console.warn('时间同步失败');
-          }
-        }).catch((error) => {
-          console.error('时间同步出错:', error);
+        // 获取设备的服务和特征值信息，获取成功后再发送时间同步指令
+        getDeviceServicesAndCharacteristics(device, () => {
+          // 连接成功后发送当前时间到设备
+          sendCurrentTimeToDevice().then((success) => {
+            if (success) {
+              console.log('时间同步成功');
+              Taro.showToast({
+                title: '时间同步成功',
+                icon: 'success',
+                duration: 1500
+              });
+            } else {
+              console.warn('时间同步失败');
+            }
+          }).catch((error) => {
+            console.error('时间同步出错:', error);
+          });
         });
       },
       fail: (err) => {
@@ -348,18 +368,18 @@ const ConnectionPage: React.FC = () => {
               
               setAvailableDevices([]);
               
-              // 重连成功后同样获取服务信息
-              getDeviceServicesAndCharacteristics(device);
-              
-              // 重连成功后也发送当前时间到设备
-              sendCurrentTimeToDevice().then((success) => {
-                if (success) {
-                  console.log('重连后时间同步成功');
-                } else {
-                  console.warn('重连后时间同步失败');
-                }
-              }).catch((error) => {
-                console.error('重连后时间同步出错:', error);
+              // 重连成功后同样获取服务信息，获取成功后再发送时间同步指令
+              getDeviceServicesAndCharacteristics(device, () => {
+                // 重连成功后也发送当前时间到设备
+                sendCurrentTimeToDevice().then((success) => {
+                  if (success) {
+                    console.log('重连后时间同步成功');
+                  } else {
+                    console.warn('重连后时间同步失败');
+                  }
+                }).catch((error) => {
+                  console.error('重连后时间同步出错:', error);
+                });
               });
             },
             fail: (err) => {
