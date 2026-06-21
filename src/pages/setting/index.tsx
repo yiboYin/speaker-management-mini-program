@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Taro from '@tarojs/taro';
 import { View, Button, Input } from '@tarojs/components';
-import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { sendCommandToDevice, decodeUtf8Bytes } from '@/utils/deviceUtils';
 import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import './index.scss';
 
@@ -363,8 +363,8 @@ const SettingPage: React.FC = () => {
       // 检查应答是否成功
       // 预期响应: 7E 04 02 02 71 01 (成功) 或 7E 04 02 02 71 00 (失败)
       if (data && data.resValue && data.resValue.length >= 5) {
-        const responseCmd = data.resValue[1]; // 应该是 0x71
-        const result = data.resValue[4]; // 01=成功, 00=失败
+        const responseCmd = data.resValue[4]; // 应该是 0x71（第5个字节）
+        const result = data.resValue[5]; // 01=成功, 00=失败（第6个字节）
         
         if (responseCmd === RESPONSE_CODES.PLAY_FILE_RESULT) {
           if (result === RESULT_CODES.SUCCESS) {
@@ -430,8 +430,8 @@ const SettingPage: React.FC = () => {
       
       // 根据协议规范，设备返回: 7E 04 02 02 73 [结果] (成功/失败)
       if (data.resValue && data.resValue.length >= 5) {
-        const responseCmd = data.resValue[1]; // 应答命令码 应该是 0x73
-        const result = data.resValue[4]; // 结果 01=成功, 00=失败
+        const responseCmd = data.resValue[4]; // 应答命令码 应该是 0x73（第5个字节）
+        const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
         
         if (responseCmd === RESPONSE_CODES.DELETE_FILE_RESULT && result === RESULT_CODES.SUCCESS) {
           // 删除成功，从本地列表中移除该文件
@@ -506,37 +506,6 @@ const SettingPage: React.FC = () => {
           }
 
           // 将字节数组转换为字符串
-          // ⚠️ 不使用 TextDecoder —— 微信小程序真机很多版本不支持，会抛 ReferenceError
-          // 手动实现 UTF-8 解码，兼容纯 ASCII（文件ID）和中文文件名
-          const decodeUtf8Bytes = (bytes: Uint8Array): string => {
-            let result = '';
-            let i = 0;
-            while (i < bytes.length) {
-              const b1 = bytes[i++];
-              if (b1 < 0x80) {
-                // 单字节 ASCII
-                result += String.fromCharCode(b1);
-              } else if (b1 < 0xE0) {
-                // 2 字节
-                const b2 = bytes[i++];
-                result += String.fromCharCode(((b1 & 0x1F) << 6) | (b2 & 0x3F));
-              } else if (b1 < 0xF0) {
-                // 3 字节（中文常用）
-                const b2 = bytes[i++];
-                const b3 = bytes[i++];
-                result += String.fromCharCode(((b1 & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
-              } else {
-                // 4 字节（emoji 等，转 UTF-16 代理对）
-                const b2 = bytes[i++];
-                const b3 = bytes[i++];
-                const b4 = bytes[i++];
-                const codePoint = ((b1 & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F);
-                const adjusted = codePoint - 0x10000;
-                result += String.fromCharCode(0xD800 + (adjusted >> 10), 0xDC00 + (adjusted & 0x3FF));
-              }
-            }
-            return result;
-          };
           const fileNameStr = decodeUtf8Bytes(new Uint8Array(fileNameDataBytes));
 
           console.log('文件名原始字符串:', fileNameStr);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button, ScrollView } from '@tarojs/components';
 import Taro from '@tarojs/taro';
-import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { sendCommandToDevice, decodeUtf8Bytes } from '@/utils/deviceUtils';
 import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES } from '@/constants/bluetoothCommands';
 import './index.scss';
 
@@ -58,8 +58,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
             const fileNameDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
-            const decoder = new TextDecoder('utf-8');
-            const fileNameStr = decoder.decode(new Uint8Array(fileNameDataBytes));
+            const fileNameStr = decodeUtf8Bytes(new Uint8Array(fileNameDataBytes));
             
             console.log('文件名原始字符串:', fileNameStr);
             

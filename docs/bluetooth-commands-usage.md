@@ -132,8 +132,8 @@ const fileId = '01';
 const command = FILE_COMMANDS.DELETE_FILE(fileId);
 await sendCommandToDevice(command, (data) => {
   if (data.resValue && data.resValue.length >= 4) {
-    const responseCmd = data.resValue[1];
-    const result = data.resValue[3];
+    const responseCmd = data.resValue[4];
+    const result = data.resValue[resValue.length - 1];
     
     if (responseCmd === RESPONSE_CODES.DELETE_FILE_RESULT && 
         result === RESULT_CODES.SUCCESS) {
@@ -167,7 +167,7 @@ await sendCommandToDevice(command, (data) => {
 // 获取设备状态
 await sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
   if (data.resValue && data.resValue.length >= 6) {
-    const responseCmd = data.resValue[1]; // 应答命令码
+    const responseCmd = data.resValue[4]; // 应答命令码
     
     if (responseCmd === RESPONSE_CODES.DEVICE_STATUS) {
       const powerStatus = data.resValue[2];    // 开关机状态

@@ -103,6 +103,37 @@ export const arrSum = (arr: number[]): number => {
   return arr.reduce((sum, val) => sum + val, 0);
 };
 
+// UTF-8字节数组转字符串（支持中文、emoji等）
+export const decodeUtf8Bytes = (bytes: Uint8Array): string => {
+  let result = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const b1 = bytes[i++];
+    if (b1 < 0x80) {
+      // 单字节 ASCII
+      result += String.fromCharCode(b1);
+    } else if (b1 < 0xE0) {
+      // 2 字节
+      const b2 = bytes[i++];
+      result += String.fromCharCode(((b1 & 0x1F) << 6) | (b2 & 0x3F));
+    } else if (b1 < 0xF0) {
+      // 3 字节（中文常用）
+      const b2 = bytes[i++];
+      const b3 = bytes[i++];
+      result += String.fromCharCode(((b1 & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
+    } else {
+      // 4 字节（emoji 等，转 UTF-16 代理对）
+      const b2 = bytes[i++];
+      const b3 = bytes[i++];
+      const b4 = bytes[i++];
+      const codePoint = ((b1 & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F);
+      const adjusted = codePoint - 0x10000;
+      result += String.fromCharCode(0xD800 + (adjusted >> 10), 0xDC00 + (adjusted & 0x3FF));
+    }
+  }
+  return result;
+};
+
 // 将十六进制字符串转换为ArrayBuffer
 export const hexStringToArrayBuffer = (hexString: string): ArrayBuffer => {
   // 移除空格并按空格分割十六进制字符串
@@ -658,7 +689,7 @@ export const sendCurrentTimeToDevice = async (): Promise<boolean> => {
         // 检查应答是否成功
         // 预期响应: 7E 03 02 02 A1
         if (data && data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[1]; // 应该是 0xA1
+          const responseCmd = data.resValue[4]; // 应该是 0xA1
           
           if (responseCmd === 0xA1) {
             console.log('时间同步成功');

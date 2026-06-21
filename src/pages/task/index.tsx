@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo, eventCenter } from '@tarojs/taro'
-import { sendCommandToDevice } from '@/utils/deviceUtils';
+import { sendCommandToDevice, decodeUtf8Bytes } from '@/utils/deviceUtils';
 import { TASK_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import TaskTabs from '@/pages/task/components/TaskTabs'
 import TaskItem from '@/pages/task/components/TaskItem'
@@ -135,8 +135,7 @@ const TaskPage: React.FC = () => {
             const taskDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
-            const decoder = new TextDecoder('utf-8');
-            const taskDataStr = decoder.decode(new Uint8Array(taskDataBytes));
+            const taskDataStr = decodeUtf8Bytes(new Uint8Array(taskDataBytes));
             
             console.log('任务数据原始字符串:', taskDataStr);
             
@@ -174,8 +173,7 @@ const TaskPage: React.FC = () => {
               
               // 文件名（4字节）
               const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
-              const fileNameDecoder = new TextDecoder('utf-8');
-              const fileNameWithoutExt = fileNameDecoder.decode(new Uint8Array(fileNameBytes));
+              const fileNameWithoutExt = decodeUtf8Bytes(new Uint8Array(fileNameBytes));
               const fileName = `${fileNameWithoutExt}.mp3`;
               currentIndex += 4;
               
@@ -277,8 +275,7 @@ const TaskPage: React.FC = () => {
             const taskDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
-            const decoder = new TextDecoder('utf-8');
-            const taskDataStr = decoder.decode(new Uint8Array(taskDataBytes));
+            const taskDataStr = decodeUtf8Bytes(new Uint8Array(taskDataBytes));
             
             console.log('任务数据原始字符串:', taskDataStr);
             
@@ -314,8 +311,7 @@ const TaskPage: React.FC = () => {
               
               // 文件名（4字节）
               const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
-              const fileNameDecoder = new TextDecoder('utf-8');
-              const fileNameWithoutExt = fileNameDecoder.decode(new Uint8Array(fileNameBytes));
+              const fileNameWithoutExt = decodeUtf8Bytes(new Uint8Array(fileNameBytes));
               const fileName = `${fileNameWithoutExt}.mp3`;
               currentIndex += 4;
               
@@ -532,9 +528,9 @@ const TaskPage: React.FC = () => {
             if (timeoutId) clearTimeout(timeoutId);
             
             // 检查响应是否成功
-            if (data.resValue && data.resValue.length >= 4) {
-              const responseCmd = data.resValue[1]; // 应答命令码
-              const result = data.resValue[3]; // 结果 01=成功, 00=失败
+            if (data.resValue && data.resValue.length >= 5) {
+              const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
+              const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
               
               if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
                 console.log('定时任务同步成功');
@@ -619,9 +615,9 @@ const TaskPage: React.FC = () => {
             if (timeoutId) clearTimeout(timeoutId);
             
             // 检查响应是否成功
-            if (data.resValue && data.resValue.length >= 4) {
-              const responseCmd = data.resValue[1]; // 应答命令码
-              const result = data.resValue[3]; // 结果 01=成功, 00=失败
+            if (data.resValue && data.resValue.length >= 5) {
+              const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
+              const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
               
               if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
                 console.log('循环任务同步成功');

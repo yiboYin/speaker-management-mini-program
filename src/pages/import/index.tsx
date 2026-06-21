@@ -375,8 +375,8 @@ const ImportPage: React.FC = () => {
           if (timeoutId) clearTimeout(timeoutId);
           
           // 检查应答是否成功
-          if (data && data.resValue && data.resValue.length >= 4) {
-            const responseCmd = data.resValue[1];
+          if (data && data.resValue && data.resValue.length >= 5) {
+            const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
             const result = data.resValue[data.resValue.length - 1];
             
             if (result === RESULT_CODES.SUCCESS) {
@@ -462,8 +462,8 @@ const ImportPage: React.FC = () => {
         console.log('结束指令响应:', data);
         
         // 检查设备是否成功接收文件
-        if (data && data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[1]; // 应答命令码
+        if (data && data.resValue && data.resValue.length >= 5) {
+          const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
           const result = data.resValue[data.resValue.length - 1]; // 结果 01=成功, 00=失败
           
           if (responseCmd === RESPONSE_CODES.FILE_TRANSFER_CONFIRM && result === RESULT_CODES.SUCCESS) {
