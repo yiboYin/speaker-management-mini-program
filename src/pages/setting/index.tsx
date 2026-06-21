@@ -479,37 +479,52 @@ const SettingPage: React.FC = () => {
       console.log('从设备接收到数据:', data);
         
       // 解析设备返回的文件数据
-      // 新协议：一次性返回所有文件名，用"/"分隔
-      // 格式: 7E [整体长度] 02 02 31 [文件名数据]
-      // 如果没有文件返回：7E 04 02 02 31 00
-      if (data.resValue && data.resValue.length >= 4) {
-        const responseCmd = data.resValue[1]; // 响应命令码
-              
+      // 协议（一次性返回所有文件名，用"/"分隔）：
+      //   帧结构: 7E [整体长度] [方向=02] [命令码高=02] [命令码低=31] [文件名数据...]
+      //   文件名不含后缀，每个文件名前带一个 "/"
+      //   示例(两个文件 1111 / 0000):
+      //     7E 0D 02 02 31 2F 31 31 31 31 2F 30 30 30 30
+      //   无文件时: 7E 04 02 02 31 00
+      if (data.resValue && data.resValue.length >= 5) {
+        const responseCmd = data.resValue[4]; // 响应命令码低位（0x31）
+
         // 检查是否是文件列表响应（0x31）
         if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
-          // 从第4个字节开始是文件名数据
-          const fileNameDataBytes = data.resValue.slice(4);
-          
+          // 文件名数据从第5个字节开始（跳过 7E 长度 方向 命令码高 命令码低）
+          const fileNameDataBytes = data.resValue.slice(5);
+
+          // 无文件情况：数据部分只有一个 0x00 字节
+          if (fileNameDataBytes.length === 1 && fileNameDataBytes[0] === 0x00) {
+            console.log('设备无文件');
+            setFileList([]);
+            Taro.showToast({
+              title: '设备中暂无文件',
+              icon: 'none',
+              duration: 1500
+            });
+            return false;
+          }
+
           // 将字节数组转换为字符串
           const decoder = new TextDecoder('utf-8');
           const fileNameStr = decoder.decode(new Uint8Array(fileNameDataBytes));
-          
+
           console.log('文件名原始字符串:', fileNameStr);
-          
-          // 按"/"分割文件名
+
+          // 按"/"分割文件名（首字节是"/"，所以会先得到一个空串，filter 掉）
           const fileNames = fileNameStr.split('/').filter(name => name.length > 0);
-          
+
           console.log('解析到的文件名:', fileNames);
-          
+
           // 构造文件列表
           const newFileList = fileNames.map((name, index) => ({
             id: `audio_${index + 1}`,
             name: name // 不添加.mp3后缀，直接使用原始文件名
           }));
-          
+
           console.log('构造的文件列表:', newFileList);
           setFileList(newFileList);
-          
+
           Taro.showToast({
             title: `获取到 ${newFileList.length} 个文件`,
             icon: 'success',
