@@ -126,13 +126,13 @@ const TaskPage: React.FC = () => {
         // 解析设备返回的任务数据
         // 新协议：一次性返回所有任务数据，用"/"分隔
         // 格式: 7E [整体长度] 02 02 43 [任务数据]
-        if (data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[1]; // 响应命令码
+        if (data.resValue && data.resValue.length >= 5) {
+          const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
           
           // 检查是否是任务数据指令（0x43）
           if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_END) {
-            // 从第4个字节开始是任务数据
-            const taskDataBytes = data.resValue.slice(4);
+            // 从第5个字节开始是任务数据（跳过帧头、长度、方向、固定值、响应码）
+            const taskDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
             const decoder = new TextDecoder('utf-8');
@@ -268,13 +268,13 @@ const TaskPage: React.FC = () => {
         // 解析设备返回的循环任务数据
         // 新协议：一次性返回所有任务数据，用"/"分隔
         // 格式: 7E [整体长度] 02 02 53 [任务数据]
-        if (data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[1]; // 响应命令码
+        if (data.resValue && data.resValue.length >= 5) {
+          const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
           
           // 检查是否是任务数据指令（0x53）
           if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_END) {
-            // 从第4个字节开始是任务数据
-            const taskDataBytes = data.resValue.slice(4);
+            // 从第5个字节开始是任务数据（跳过帧头、长度、方向、固定值、响应码）
+            const taskDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
             const decoder = new TextDecoder('utf-8');

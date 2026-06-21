@@ -44,8 +44,8 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         console.log('接收到的数据:', data);
         
         // 检查响应数据
-        if (data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[1]; // 响应命令码
+        if (data.resValue && data.resValue.length >= 5) {
+          const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
           
           // 如果是文件列表响应（0x31）
           if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
@@ -54,8 +54,8 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
             // 文件名不包含后缀，每个文件名前面包含一个分隔符“/”
             // 例如: 2F 31 31 31 31 2F 30 30 30 30 表示 "/1111/0000"
             
-            // 从第4个字节开始是文件名数据
-            const fileNameDataBytes = data.resValue.slice(4);
+            // 从第5个字节开始是文件名数据（跳过帧头、长度、方向、固定值、响应码）
+            const fileNameDataBytes = data.resValue.slice(5);
             
             // 将字节数组转换为字符串
             const decoder = new TextDecoder('utf-8');
@@ -137,8 +137,8 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
           // 检查应答是否成功
           // 预期响应: 7E 04 02 02 71 01 (成功) 或 7E 04 02 02 71 00 (失败)
           if (data && data.resValue && data.resValue.length >= 5) {
-            const responseCmd = data.resValue[1]; // 应该是 0x71
-            const result = data.resValue[4]; // 01=成功, 00=失败
+            const responseCmd = data.resValue[4]; // 应该是 0x71（第5个字节）
+            const result = data.resValue[5]; // 01=成功, 00=失败（第6个字节）
             
             if (responseCmd === RESPONSE_CODES.PLAY_FILE_RESULT) {
               if (result === RESULT_CODES.SUCCESS) {
