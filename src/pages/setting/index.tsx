@@ -9,57 +9,24 @@ const SettingPage: React.FC = () => {
   const buttons = [
     { text: '恢复出厂设置', action: 'factoryReset' },
     { text: '开关机', action: 'powerToggle' },
-    { text: '灯模式', action: 'lightMode' },
-    { text: '定时', action: 'schedule' },
-    { text: '上电播放', action: 'powerPlay' },
     { text: '到点循环', action: 'timeLoop' },
     { text: '上一首', action: 'previous' },
     { text: '播放/停止', action: 'playPause' },
     { text: '下一首', action: 'next' },
     { text: '音量加', action: 'volumeUp' },
-    { text: '音量减', action: 'volumeDown' }
+    { text: '音量减', action: 'volumeDown' },
+    { text: '定时', action: 'schedule' }
   ];
-  
-  // 组件挂载时获取设备状态
-  useEffect(() => {
-    // 获取当前设备状态
-    sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-      console.log('初始设备状态返回数据:', data);
-      
-      // 解析设备状态返回数据
-      // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-      if (data.resValue && data.resValue.length >= 6) {
-        // 状态字节格式：[开关机][定时][上电播放][到点循环]
-        const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
-        const powerPlayStatus = data.resValue[4]; // 上电播放状态在第5个字节
-        const timeLoopStatus = data.resValue[5]; // 到点循环状态在第6个字节
-        
-        // 更新本地状态
-        setScheduleEnabled(scheduleStatus === 0x01);
-        setPowerPlayEnabled(powerPlayStatus === 0x01);
-        setTimeLoopEnabled(timeLoopStatus === 0x01);
-      }
-      return false;
-    }).catch((error) => {
-      console.error('获取初始设备状态失败:', error);
-    });
-  }, []);
   
   const [ledText, setLedText] = useState('');
   
   interface FileItem {
     id: string;
     name: string;
-    duration?: string; // 可选的时长信息
   }
   
   const [fileList, setFileList] = useState<FileItem[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  
-  // 添加定时、到点循环、上电播放的状态
-  const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(false);
-  const [timeLoopEnabled, setTimeLoopEnabled] = useState<boolean>(false);
-  const [powerPlayEnabled, setPowerPlayEnabled] = useState<boolean>(false);
   
 
 
@@ -133,131 +100,23 @@ const SettingPage: React.FC = () => {
           });
         });
         return false; // 返回，避免执行后续的通用发送逻辑
-      case 'lightMode':
-        // 灯模式循环：1 -> 2 -> 3 -> 1...
-        // 由于当前没有存储灯模式的状态，暂时使用随机模式
-        const randomMode = Math.floor(Math.random() * 3) + 1; // 1, 2, 或 3
-        const lightModeCommands = [
-          CONTROL_COMMANDS.LIGHT_MODE_1,
-          CONTROL_COMMANDS.LIGHT_MODE_2,
-          CONTROL_COMMANDS.LIGHT_MODE_3
-        ];
-        command = lightModeCommands[randomMode - 1];
+      case 'previous':
+        command = CONTROL_COMMANDS.PREVIOUS;
         break;
-      case 'schedule':
-        // 先获取当前设备状态
-        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-          console.log('设备状态返回数据:', data);
-          
-          // 解析设备状态返回数据
-          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-          if (data.resValue && data.resValue.length >= 6) {
-            // 状态字节格式：[开关机][定时][上电播放][到点循环]
-            const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
-            
-            // 根据当前定时状态切换
-            if (scheduleStatus === 0x00) {
-              // 当前为关闭状态，发送开启指令
-              command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
-              setScheduleEnabled(true); // 更新本地状态
-            } else {
-              // 当前为开启状态，发送关闭指令
-              command = CONTROL_COMMANDS.SCHEDULE_DISABLE;
-              setScheduleEnabled(false); // 更新本地状态
-            }
-            
-            sendCommandToDevice(command, (data) => {
-              console.log('定时操作返回数据:', data);
-              return false;
-            }).then(() => {
-              Taro.showToast({
-                title: scheduleStatus === 0x00 ? '定时开启成功' : '定时关闭成功',
-                icon: 'success',
-                duration: 2000
-              });
-            }).catch((error) => {
-              console.error('发送定时指令失败:', error);
-              Taro.showToast({
-                title: '发送定时指令失败',
-                icon: 'none',
-                duration: 2000
-              });
-            });
-          } else {
-            console.error('设备状态数据格式不正确');
-            Taro.showToast({
-              title: '设备状态数据格式不正确',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-        }).catch((error) => {
-          console.error('获取设备状态失败:', error);
-          Taro.showToast({
-            title: '获取设备状态失败',
-            icon: 'none',
-            duration: 2000
-          });
-        });
-        return false; // 返回，避免后续执行
-      case 'powerPlay':
-        // 先获取当前设备状态
-        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-          console.log('设备状态返回数据:', data);
-          
-          // 解析设备状态返回数据
-          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-          if (data.resValue && data.resValue.length >= 6) {
-            // 状态字节格式：[开关机][定时][上电播放][到点循环]
-            const powerPlayStatus = data.resValue[4]; // 上电播放状态在第5个字节
-            
-            // 根据当前上电播放状态切换
-            if (powerPlayStatus === 0x00) {
-              // 当前为关闭状态，发送开启指令
-              command = CONTROL_COMMANDS.POWER_PLAY_ENABLE;
-              setPowerPlayEnabled(true); // 更新本地状态
-            } else {
-              // 当前为开启状态，发送关闭指令
-              command = CONTROL_COMMANDS.POWER_PLAY_DISABLE;
-              setPowerPlayEnabled(false); // 更新本地状态
-            }
-            
-            sendCommandToDevice(command, (data) => {
-              console.log('上电播放操作返回数据:', data);
-              return false;
-            }).then(() => {
-              Taro.showToast({
-                title: powerPlayStatus === 0x00 ? '上电播放开启成功' : '上电播放关闭成功',
-                icon: 'success',
-                duration: 2000
-              });
-            }).catch((error) => {
-              console.error('发送上电播放指令失败:', error);
-              Taro.showToast({
-                title: '发送上电播放指令失败',
-                icon: 'none',
-                duration: 2000
-              });
-            });
-          } else {
-            console.error('设备状态数据格式不正确');
-            Taro.showToast({
-              title: '设备状态数据格式不正确',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-        }).catch((error) => {
-          console.error('获取设备状态失败:', error);
-          Taro.showToast({
-            title: '获取设备状态失败',
-            icon: 'none',
-            duration: 2000
-          });
-        });
-        return false; // 返回，避免执行后续的通用发送逻辑
+      case 'playPause':
+        command = CONTROL_COMMANDS.PLAY_PAUSE;
+        break;
+      case 'next':
+        command = CONTROL_COMMANDS.NEXT;
+        break;
+      case 'volumeUp':
+        command = CONTROL_COMMANDS.VOLUME_UP;
+        break;
+      case 'volumeDown':
+        command = CONTROL_COMMANDS.VOLUME_DOWN;
+        break;
       case 'timeLoop':
-        // 先获取当前设备状态
+        // 先获取设备状态，然后切换到点循环状态
         sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
           console.log('设备状态返回数据:', data);
           
@@ -271,11 +130,9 @@ const SettingPage: React.FC = () => {
             if (timeLoopStatus === 0x00) {
               // 当前为关闭状态，发送开启指令
               command = CONTROL_COMMANDS.TIME_LOOP_ENABLE;
-              setTimeLoopEnabled(true); // 更新本地状态
             } else {
               // 当前为开启状态，发送关闭指令
               command = CONTROL_COMMANDS.TIME_LOOP_DISABLE;
-              setTimeLoopEnabled(false); // 更新本地状态
             }
             
             sendCommandToDevice(command, (data) => {
@@ -283,7 +140,7 @@ const SettingPage: React.FC = () => {
               return false;
             }).then(() => {
               Taro.showToast({
-                title: timeLoopStatus === 0x00 ? '到点循环开启成功' : '到点循环关闭成功',
+                title: '到点循环指令发送成功',
                 icon: 'success',
                 duration: 2000
               });
@@ -303,6 +160,7 @@ const SettingPage: React.FC = () => {
               duration: 2000
             });
           }
+          return false; // 返回，避免后续执行
         }).catch((error) => {
           console.error('获取设备状态失败:', error);
           Taro.showToast({
@@ -312,21 +170,61 @@ const SettingPage: React.FC = () => {
           });
         });
         return false; // 返回，避免执行后续的通用发送逻辑
-      case 'previous':
-        command = CONTROL_COMMANDS.PREVIOUS;
-        break;
-      case 'playPause':
-        command = CONTROL_COMMANDS.PLAY_PAUSE;
-        break;
-      case 'next':
-        command = CONTROL_COMMANDS.NEXT;
-        break;
-      case 'volumeUp':
-        command = CONTROL_COMMANDS.VOLUME_UP;
-        break;
-      case 'volumeDown':
-        command = CONTROL_COMMANDS.VOLUME_DOWN;
-        break;
+      case 'schedule':
+        // 先获取设备状态，然后切换定时状态
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
+          console.log('设备状态返回数据:', data);
+          
+          // 解析设备状态返回数据
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
+          if (data.resValue && data.resValue.length >= 6) {
+            // 状态字节格式：[开关机][定时][上电播放][到点循环]
+            const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
+            
+            // 根据当前定时状态切换
+            if (scheduleStatus === 0x00) {
+              // 当前为关闭状态，发送开启指令
+              command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
+            } else {
+              // 当前为开启状态，发送关闭指令
+              command = CONTROL_COMMANDS.SCHEDULE_DISABLE;
+            }
+            
+            sendCommandToDevice(command, (data) => {
+              console.log('定时操作返回数据:', data);
+              return false;
+            }).then(() => {
+              Taro.showToast({
+                title: '定时指令发送成功',
+                icon: 'success',
+                duration: 2000
+              });
+            }).catch((error) => {
+              console.error('发送定时指令失败:', error);
+              Taro.showToast({
+                title: '发送定时指令失败',
+                icon: 'none',
+                duration: 2000
+              });
+            });
+          } else {
+            console.error('设备状态数据格式不正确');
+            Taro.showToast({
+              title: '设备状态数据格式不正确',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+          return false; // 返回，避免后续执行
+        }).catch((error) => {
+          console.error('获取设备状态失败:', error);
+          Taro.showToast({
+            title: '获取设备状态失败',
+            icon: 'none',
+            duration: 2000
+          });
+        });
+        return false; // 返回，避免执行后续的通用发送逻辑
       default:
         console.log(`未知操作: ${action}`);
         return;
@@ -435,22 +333,62 @@ const SettingPage: React.FC = () => {
   
   const handlePlayFile = (e: any, fileIndex: number) => {
     e.stopPropagation(); // 阻止冒泡，避免影响选中状态
-    console.log(`试听第${fileIndex}个文件`);
     
-    // 播放指定文件，可能需要先发送选择文件的指令，再发送播放指令
-    // 由于协议中未明确规定选择特定文件的指令，这里先发送播放/停止指令
-    const command = CONTROL_COMMANDS.PLAY_PAUSE;
+    // 获取文件名（从fileList中）
+    if (fileIndex < 1 || fileIndex > fileList.length) {
+      Taro.showToast({
+        title: '文件索引无效',
+        icon: 'none'
+      });
+      return;
+    }
     
-    sendCommandToDevice(command, (data) => {
+    const file = fileList[fileIndex - 1];
+    console.log(`试听文件: ${file.name}`);
+    
+    // 构造带分隔符的文件名（例如："/1111"）
+    // fileName现在是"1111"格式，直接添加分隔符即可
+    const fileNameWithSlash = `/${file.name}`;
+    
+    // 构造播放指定文件的指令
+    const playCommand = CONTROL_COMMANDS.PLAY_FILE(fileNameWithSlash);
+    
+    console.log('播放指令:', playCommand);
+    console.log('文件名（含分隔符）:', fileNameWithSlash);
+    
+    sendCommandToDevice(playCommand, (data) => {
       // 处理试听操作的返回数据
-      console.log(`试听第${fileIndex}个文件返回数据:`, data);
+      console.log(`试听文件返回数据:`, data);
+      
+      // 检查应答是否成功
+      // 预期响应: 7E 04 02 02 71 01 (成功) 或 7E 04 02 02 71 00 (失败)
+      if (data && data.resValue && data.resValue.length >= 5) {
+        const responseCmd = data.resValue[1]; // 应该是 0x71
+        const result = data.resValue[4]; // 01=成功, 00=失败
+        
+        if (responseCmd === RESPONSE_CODES.PLAY_FILE_RESULT) {
+          if (result === RESULT_CODES.SUCCESS) {
+            console.log('文件试听成功');
+            Taro.showToast({
+              title: '开始试听',
+              icon: 'success',
+              duration: 1500
+            });
+          } else {
+            console.warn('文件试听失败');
+            Taro.showToast({
+              title: '试听失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        } else {
+          console.warn('收到未知响应命令码:', responseCmd.toString(16));
+        }
+      }
       return false;
     }).then(() => {
-      Taro.showToast({
-        title: '试听指令发送成功',
-        icon: 'success',
-        duration: 2000
-      });
+      console.log('试听指令发送完成');
     }).catch((error) => {
       console.error('试听指令发送失败:', error);
       Taro.showToast({
@@ -463,22 +401,37 @@ const SettingPage: React.FC = () => {
   
   const handleDeleteFile = (e: any, fileId: string) => {
     e.stopPropagation(); // 阻止冒泡，避免影响选中状态
-    console.log(`删除文件ID: ${fileId}`);
     
-    // 从文件ID中提取数字部分作为文件ID
-    const fileNumber = parseInt(fileId.replace('audio_', ''), 10);
+    // 从fileList中获取文件名
+    const file = fileList.find(f => f.id === fileId);
+    if (!file) {
+      Taro.showToast({
+        title: '文件不存在',
+        icon: 'none'
+      });
+      return;
+    }
+    
+    console.log(`删除文件: ${file.name}`);
+    
+    // 构造带分隔符的文件名（例如："/1111"）
+    // fileName现在是"1111"格式，直接添加分隔符即可
+    const fileNameWithSlash = `/${file.name}`;
     
     // 构造删除文件指令
-    const command = FILE_COMMANDS.DELETE_FILE(fileNumber.toString(16).padStart(2, '0'));
+    const command = FILE_COMMANDS.DELETE_FILE(fileNameWithSlash);
+    
+    console.log('删除指令:', command);
+    console.log('文件名（含分隔符）:', fileNameWithSlash);
     
     sendCommandToDevice(command, (data) => {
       // 处理删除文件操作的返回数据
       console.log(`删除文件返回数据:`, data);
       
-      // 根据协议规范，设备返回: 7E [整体长度] 02 02 33 [结果] (成功/失败)
-      if (data.resValue && data.resValue.length >= 4) {
-        const responseCmd = data.resValue[1]; // 应答命令码
-        const result = data.resValue[3]; // 结果 01=成功, 00=失败
+      // 根据协议规范，设备返回: 7E 04 02 02 73 [结果] (成功/失败)
+      if (data.resValue && data.resValue.length >= 5) {
+        const responseCmd = data.resValue[1]; // 应答命令码 应该是 0x73
+        const result = data.resValue[4]; // 结果 01=成功, 00=失败
         
         if (responseCmd === RESPONSE_CODES.DELETE_FILE_RESULT && result === RESULT_CODES.SUCCESS) {
           // 删除成功，从本地列表中移除该文件
@@ -517,72 +470,56 @@ const SettingPage: React.FC = () => {
     // 已连接设备，向设备发送指令
     console.log('已连接设备，发送指令:', FILE_COMMANDS.READ_FILE_LIST);
       
+    // 清空现有文件列表
+    setFileList([]);
+      
     // 发送指令到设备
     sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
       // 处理接收到的数据
       console.log('从设备接收到数据:', data);
         
       // 解析设备返回的文件数据
-      // 新协议：逐个返回单个文件，最后发送结束指令
-      // 文件格式: 7E [整体长度] 02 02 31 [文件数据] 或 结束格式: 7E 03 02 02 32
-      if (data.resValue && data.resValue.length >= 3) {
+      // 新协议：一次性返回所有文件名，用"/"分隔
+      // 格式: 7E [整体长度] 02 02 31 [文件名数据]
+      // 如果没有文件返回：7E 04 02 02 31 00
+      if (data.resValue && data.resValue.length >= 4) {
         const responseCmd = data.resValue[1]; // 响应命令码
               
-        // 检查是否是结束指令
-        if (responseCmd === RESPONSE_CODES.FILE_LIST_END) {
-          // 收到结束指令，获取文件完成
-          console.log('文件列表获取完成');
-          return false;
-        }
-              
-        // 检查是否是文件数据指令
-        if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM && data.resValue.length >= 4) {
-          // 解析单个文件数据格式: [文件ID][文件名长度][文件名][文件大小]
-          let currentIndex = 2; // 从第3个字节开始是文件数据
-                
-          const fileId = data.resValue[currentIndex];
-          currentIndex++;
-                
-          if (currentIndex < data.resValue.length) {
-            const fileNameLength = data.resValue[currentIndex];
-            currentIndex++;
-                  
-            if (currentIndex + fileNameLength <= data.resValue.length) {
-              // 提取文件名（UTF-8编码）
-              const fileNameBytes = data.resValue.slice(currentIndex, currentIndex + fileNameLength);
-              const decoder = new TextDecoder('utf-8');
-              const fileName = decoder.decode(new Uint8Array(fileNameBytes));
-              currentIndex += fileNameLength;
-                    
-              if (currentIndex + 3 < data.resValue.length) {
-                // 文件大小是4字节（大端序）
-                const fileSize = (data.resValue[currentIndex] << 24) |
-                                 (data.resValue[currentIndex + 1] << 16) |
-                                 (data.resValue[currentIndex + 2] << 8) |
-                                 data.resValue[currentIndex + 3];
-                      
-                // 添加到现有文件列表
-                setFileList(prevList => {
-                  const newFileList = [...prevList, {
-                    id: `audio_${fileId}`,
-                    name: fileName,
-                    duration: `${fileSize}KB` // 使用文件大小作为时长显示
-                  }];
-                  console.log('获取到的文件:', newFileList);
-                  return newFileList;
-                });
-              }
-            }
-          }
+        // 检查是否是文件列表响应（0x31）
+        if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
+          // 从第4个字节开始是文件名数据
+          const fileNameDataBytes = data.resValue.slice(4);
+          
+          // 将字节数组转换为字符串
+          const decoder = new TextDecoder('utf-8');
+          const fileNameStr = decoder.decode(new Uint8Array(fileNameDataBytes));
+          
+          console.log('文件名原始字符串:', fileNameStr);
+          
+          // 按"/"分割文件名
+          const fileNames = fileNameStr.split('/').filter(name => name.length > 0);
+          
+          console.log('解析到的文件名:', fileNames);
+          
+          // 构造文件列表
+          const newFileList = fileNames.map((name, index) => ({
+            id: `audio_${index + 1}`,
+            name: name // 不添加.mp3后缀，直接使用原始文件名
+          }));
+          
+          console.log('构造的文件列表:', newFileList);
+          setFileList(newFileList);
+          
+          Taro.showToast({
+            title: `获取到 ${newFileList.length} 个文件`,
+            icon: 'success',
+            duration: 1500
+          });
         }
       }
       return false;
     }).then(() => {
-      Taro.showToast({
-        title: '指令发送成功',
-        icon: 'success',
-        duration: 2000
-      });
+      console.log('读取文件指令发送完成');
     }).catch((error) => {
       console.error('发送指令失败:', error);
       Taro.showToast({
@@ -601,12 +538,7 @@ const SettingPage: React.FC = () => {
           {buttons.map((button, index) => (
             <Button 
               key={index} 
-              className={`grid-button ${
-                (button.action === 'schedule' && scheduleEnabled) ||
-                (button.action === 'powerPlay' && powerPlayEnabled) ||
-                (button.action === 'timeLoop' && timeLoopEnabled) 
-                  ? 'enabled' : ''
-              }`}
+              className="grid-button"
               onClick={() => handleButtonClick(button.action)}
             >
               {button.text}
@@ -648,7 +580,6 @@ const SettingPage: React.FC = () => {
                 onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
               >
                 <View className="file-name">{file.name}</View>
-                {file.duration && <View className="file-duration">{file.duration}</View>}
                 <Button 
                   className="play-btn"
                   onClick={(e) => handlePlayFile(e, index + 1)}

@@ -39,40 +39,44 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     console.log('开始获取文件列表...');
     
     try {
-      const fileList: FileItem[] = [];
-      let fileIndex = 1;
-      
       // 发送读取文件列表指令
       await sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
         console.log('接收到的数据:', data);
         
-        // 检查是否是文件列表项
-        if (data.resValue && data.resValue.length >= 3) {
+        // 检查响应数据
+        if (data.resValue && data.resValue.length >= 4) {
           const responseCmd = data.resValue[1]; // 响应命令码
           
-          // 如果是文件列表项（0x31）
+          // 如果是文件列表响应（0x31）
           if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
-            // 解析文件数据
-            // 格式: 7E [整体长度] 02 02 31 [文件数据]
-            // 文件数据包含：文件名、时长等信息
-            // 这里需要根据实际协议解析，暂时使用模拟数据
+            // 新协议：一次性返回所有文件名，用"/"分隔
+            // 格式: 7E [整体长度] 02 02 31 [文件名数据]
+            // 文件名不包含后缀，每个文件名前面包含一个分隔符“/”
+            // 例如: 2F 31 31 31 31 2F 30 30 30 30 表示 "/1111/0000"
             
-            const fileId = `file_${String(fileIndex).padStart(2, '0')}`;
-            const fileName = `${String(fileIndex).padStart(4, '0')}.mp3`;
-            const duration = '00:30'; // 默认时长，实际应从设备返回中解析
+            // 从第4个字节开始是文件名数据
+            const fileNameDataBytes = data.resValue.slice(4);
             
-            fileList.push({
-              id: fileId,
-              name: fileName,
+            // 将字节数组转换为字符串
+            const decoder = new TextDecoder('utf-8');
+            const fileNameStr = decoder.decode(new Uint8Array(fileNameDataBytes));
+            
+            console.log('文件名原始字符串:', fileNameStr);
+            
+            // 按"/"分割文件名
+            const fileNames = fileNameStr.split('/').filter(name => name.length > 0);
+            
+            console.log('解析到的文件名:', fileNames);
+            
+            // 构造文件列表
+            const fileList: FileItem[] = fileNames.map((name, index) => ({
+              id: `file_${String(index + 1).padStart(2, '0')}`,
+              name: name, // 不添加.mp3后缀，直接使用原始文件名
               path: '', // 硬件文件不需要本地路径
-              duration: duration
-            });
+              duration: '--:--' // 默认时长
+            }));
             
-            fileIndex++;
-          }
-          // 如果是结束指令（0x32）
-          else if (responseCmd === RESPONSE_CODES.FILE_LIST_END) {
-            console.log('文件列表获取完成，共', fileList.length, '个文件');
+            console.log('构造的文件列表:', fileList);
             setFiles(fileList);
             setLoading(false);
             
@@ -97,7 +101,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
   };
 
   // 试听音频（发送指令给硬件设备播放）
-  const playAudio = async (fileId: string, filePath: string) => {
+  const playAudio = async (fileId: string, fileName: string) => {
     // 如果正在预览同一个文件，则停止
     if (previewingFileId === fileId) {
       stopPreview();
@@ -108,38 +112,88 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     stopPreview();
     
     try {
-      console.log('发送试听指令到硬件设备:', { fileId, filePath });
+      console.log('发送试听指令到硬件设备:', { fileId, fileName });
       
-      // 提取文件ID的最后两位作为播放指令的参数
-      // 例如：file_1 -> '01', file_2 -> '02'
-      const fileIndex = fileId.split('_')[1] || '01';
-      const paddedIndex = fileIndex.padStart(2, '0'); // 确保是两位数
+      // 构造带分隔符的文件名（例如："/1111"）
+      // fileName现在是"1111"格式，直接添加分隔符即可
+      const fileNameWithSlash = `/${fileName}`;
       
       // 构造播放指定文件的指令
-      const playCommand = CONTROL_COMMANDS.PLAY_FILE(paddedIndex);
+      const playCommand = CONTROL_COMMANDS.PLAY_FILE(fileNameWithSlash);
       
       console.log('播放指令:', playCommand);
+      console.log('文件名（含分隔符）:', fileNameWithSlash);
       
-      // 发送蓝牙指令到设备
-      await sendCommandToDevice(playCommand, (data) => {
-        console.log('设备响应:', data);
-        // TODO: 根据响应判断是否成功
+      // 发送蓝牙指令到设备，并等待响应
+      await new Promise<boolean>((resolve, reject) => {
+        let timeoutId: any;
+        
+        sendCommandToDevice(playCommand, (data) => {
+          console.log('设备响应:', data);
+          
+          // 清除超时定时器
+          if (timeoutId) clearTimeout(timeoutId);
+          
+          // 检查应答是否成功
+          // 预期响应: 7E 04 02 02 71 01 (成功) 或 7E 04 02 02 71 00 (失败)
+          if (data && data.resValue && data.resValue.length >= 5) {
+            const responseCmd = data.resValue[1]; // 应该是 0x71
+            const result = data.resValue[4]; // 01=成功, 00=失败
+            
+            if (responseCmd === RESPONSE_CODES.PLAY_FILE_RESULT) {
+              if (result === RESULT_CODES.SUCCESS) {
+                console.log('文件试听成功');
+                resolve(true);
+              } else {
+                console.warn('文件试听失败');
+                resolve(false);
+              }
+            } else {
+              console.warn('收到未知响应命令码:', responseCmd.toString(16));
+              resolve(false);
+            }
+          } else {
+            console.warn('收到无效应答');
+            resolve(false);
+          }
+          
+          return false; // 取消监听
+        });
+        
+        // 设置超时保护（3秒）
+        timeoutId = setTimeout(() => {
+          console.error('等待试听应答超时');
+          reject(new Error('等待试听应答超时'));
+        }, 3000);
+      }).then((success) => {
+        if (success) {
+          setPreviewingFileId(fileId);
+          
+          Taro.showToast({
+            title: '开始试听',
+            icon: 'success'
+          });
+          
+          // 模拟播放结束（实际应该监听硬件返回的状态）
+          setTimeout(() => {
+            setPreviewingFileId('');
+          }, 5000); // 假设播放5秒后自动结束
+        } else {
+          Taro.showToast({
+            title: '试听失败',
+            icon: 'none'
+          });
+        }
+      }).catch((error) => {
+        console.error('发送试听指令失败:', error);
+        Taro.showToast({
+          title: '发送指令失败',
+          icon: 'none'
+        });
       });
-      
-      setPreviewingFileId(fileId);
-      
-      Taro.showToast({
-        title: '已发送试听指令',
-        icon: 'success'
-      });
-      
-      // 模拟播放结束（实际应该监听硬件返回的状态）
-      setTimeout(() => {
-        setPreviewingFileId('');
-      }, 5000); // 假设播放5秒后自动结束
       
     } catch (error) {
-      console.error('发送试听指令失败:', error);
+      console.error('发送试听指令异常:', error);
       Taro.showToast({
         title: '发送指令失败',
         icon: 'none'
@@ -218,7 +272,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                     className={`action-btn preview-btn ${previewingFileId === file.id ? 'playing' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      playAudio(file.id, file.path);
+                      playAudio(file.id, file.name);
                     }}
                   >
                     {previewingFileId === file.id ? '停止' : '试听'}

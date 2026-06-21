@@ -33,7 +33,17 @@ export const CONTROL_COMMANDS = {
   NEXT: '7E 03 01 02 09',
   
   // 文件播放（用于试听）
-  PLAY_FILE: (fileId: string) => `7E 04 01 02 0C ${fileId}`, // 0C = 播放指定文件
+  PLAY_FILE: (fileNameWithSlash: string) => {
+    // 将文件名转换为十六进制
+    const hexChars = [];
+    for (let i = 0; i < fileNameWithSlash.length; i++) {
+      hexChars.push(fileNameWithSlash.charCodeAt(i).toString(16).toUpperCase().padStart(2, '0'));
+    }
+    const fileNameHex = hexChars.join(' ');
+    // 整体长度 = 命令码(2) + 方向(1) + 数据(1+文件名长度)
+    const totalLength = (3 + fileNameWithSlash.length).toString(16).toUpperCase().padStart(2, '0');
+    return `7E ${totalLength} 01 02 70 ${fileNameHex}`;
+  },
   STOP_PLAY: '7E 03 01 02 0D', // 0D = 停止播放
   
   // 音量控制
@@ -41,7 +51,10 @@ export const CONTROL_COMMANDS = {
   VOLUME_DOWN: '7E 03 01 02 0B',
   
   // 设备状态查询
-  GET_DEVICE_STATUS: '7E 03 01 02 10'
+  GET_DEVICE_STATUS: '7E 03 01 02 10',
+  
+  // 时间同步 (需要传入7字节时间数据)
+  SYNC_TIME: (timeData: string) => `7E 09 01 02 A0 ${timeData}` // 09=整体长度(1+2+7), A0=命令码
 };
 
 // 文件管理类指令
@@ -49,8 +62,18 @@ export const FILE_COMMANDS = {
   // 读取文件列表
   READ_FILE_LIST: '7E 03 01 02 30',
   
-  // 删除文件 (需要替换[ID]为实际文件ID)
-  DELETE_FILE: (fileId: string) => `7E 04 01 02 32 ${fileId}`,
+  // 删除文件 (需要传入带分隔符的文件名)
+  DELETE_FILE: (fileNameWithSlash: string) => {
+    // 将文件名转换为十六进制
+    const hexChars = [];
+    for (let i = 0; i < fileNameWithSlash.length; i++) {
+      hexChars.push(fileNameWithSlash.charCodeAt(i).toString(16).toUpperCase().padStart(2, '0'));
+    }
+    const fileNameHex = hexChars.join(' ');
+    // 整体长度 = 命令码(2) + 方向(1) + 数据(1+文件名长度)
+    const totalLength = (3 + fileNameWithSlash.length).toString(16).toUpperCase().padStart(2, '0');
+    return `7E ${totalLength} 01 02 72 ${fileNameHex}`;
+  },
   
   // 文件传输相关
   START_FILE_TRANSFER: (totalLength: string, fileIdLength: string, fileId: string, fileSize: string[]) => 
@@ -70,7 +93,7 @@ export const TASK_COMMANDS = {
     `7E ${totalLength} 01 02 40 ${taskData}`,
   
   // 循环播放任务
-  GET_INTERVAL_TASKS: '7E 03 01 02 51',
+  GET_INTERVAL_TASKS: '7E 03 01 02 52',
   UPDATE_INTERVAL_TASK: (totalLength: string, taskData: string) => 
     `7E ${totalLength} 01 02 50 ${taskData}`
 };
@@ -79,12 +102,14 @@ export const TASK_COMMANDS = {
 export const RESPONSE_CODES = {
   // 控制类响应
   DEVICE_STATUS: 0x11,
+  TIME_SYNC_CONFIRM: 0xA1, // 时间同步确认
   
   // 文件管理响应
   FILE_LIST_ITEM: 0x31,
   FILE_LIST_END: 0x32,
-  DELETE_FILE_RESULT: 0x33,
+  DELETE_FILE_RESULT: 0x73, // 文件删除结果
   FILE_TRANSFER_CONFIRM: 0x36,
+  PLAY_FILE_RESULT: 0x71, // 文件试听结果
   
   // 任务管理响应
   SCHEDULE_TASK_ITEM: 0x42,

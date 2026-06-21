@@ -13,6 +13,9 @@ const ImportPage: React.FC = () => {
 
   // 选中文件的状态
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  
+  // 导入状态（控制按钮禁用）
+  const [isImporting, setIsImporting] = useState<boolean>(false);
 
   // 真实文件列表数据
   const [fileList, setFileList] = useState<any[]>([]);
@@ -286,6 +289,9 @@ const ImportPage: React.FC = () => {
       return;
     }
     
+    // 设置导入状态为true，禁用所有按钮
+    setIsImporting(true);
+    
     // 显示正在发送的提示
     Taro.showLoading({
       title: '正在发送 ' + selectedFile.name + ' 到设备...'
@@ -462,6 +468,7 @@ const ImportPage: React.FC = () => {
           
           if (responseCmd === RESPONSE_CODES.FILE_TRANSFER_CONFIRM && result === RESULT_CODES.SUCCESS) {
             Taro.hideLoading();
+            setIsImporting(false); // 恢复按钮状态
             Taro.showToast({
               title: '文件发送成功',
               icon: 'success',
@@ -469,6 +476,7 @@ const ImportPage: React.FC = () => {
             });
           } else {
             Taro.hideLoading();
+            setIsImporting(false); // 恢复按钮状态
             Taro.showToast({
               title: '文件发送失败1',
               icon: 'none',
@@ -477,6 +485,7 @@ const ImportPage: React.FC = () => {
           }
         } else {
           Taro.hideLoading();
+          setIsImporting(false); // 恢复按钮状态
           Taro.showToast({
             title: '文件发送失败2',
             icon: 'none',
@@ -488,6 +497,7 @@ const ImportPage: React.FC = () => {
     } catch (error) {
       console.error('发送文件过程出错:', error);
       Taro.hideLoading();
+      setIsImporting(false); // 恢复按钮状态
       Taro.showToast({
         title: `文件发送失败: ${error.message}`,
         icon: 'none',
@@ -563,16 +573,33 @@ const ImportPage: React.FC = () => {
       {/* 工具栏（移除绝对定位） */}
       <View className="toolbar">
         <View className="left-buttons">
-          <Button className="toolbar-btn" onClick={() => {
-            // 跳转到合成页面
-            navigateTo({
-              url: '/pages/import/synthesis/index'
-            });
-          }}>合成</Button>
-          <Button className="toolbar-btn" onClick={selectFiles}>导入</Button>
+          <Button 
+            className="toolbar-btn" 
+            disabled={isImporting}
+            onClick={() => {
+              // 跳转到合成页面
+              navigateTo({
+                url: '/pages/import/synthesis/index'
+              });
+            }}
+          >
+            合成
+          </Button>
+          <Button 
+            className="toolbar-btn" 
+            disabled={isImporting}
+            onClick={selectFiles}
+          >
+            导入
+          </Button>
         </View>
         <View className="right-buttons">
-          <Button className="clear-btn">清空</Button>
+          <Button 
+            className="clear-btn"
+            disabled={isImporting}
+          >
+            清空
+          </Button>
         </View>
       </View>
       
@@ -594,6 +621,7 @@ const ImportPage: React.FC = () => {
             <Text className="file-duration">{file.duration}</Text>
             <Button 
               className="delete-btn" 
+              disabled={isImporting}
               onClick={(e) => {
                 e.stopPropagation(); // 阻止点击事件冒泡到父元素
                 // 删除文件逻辑
@@ -611,12 +639,14 @@ const ImportPage: React.FC = () => {
         <View className="bottom-action-container">
           <Button 
             className="action-btn send-to-device" 
+            disabled={isImporting}
             onClick={() => sendFileToDevice()}
           >
             发送到设备
           </Button>
           <Button 
             className="action-btn preview" 
+            disabled={isImporting}
             onClick={() => playSelectedFile()}
           >
             试听

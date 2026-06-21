@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, Button } from '@tarojs/components'
 import Taro, { useReachBottom, getStorageSync } from '@tarojs/taro'
 import Loading from '@/components/Loading'
-import { saveConnectedDevice, clearConnectedDevice } from '@/utils/deviceUtils';
+import { saveConnectedDevice, clearConnectedDevice, sendCurrentTimeToDevice } from '@/utils/deviceUtils';
 import { Device } from '@/types/device';
 import { getDeviceId, setDeviceId, getFilterDeviceName, setFilterDeviceName, getFilterServiceUUID, setFilterServiceUUID, getNotifyUUID, setNotifyUUID, getWriteUUID, setWriteUUID, getServiceUUID, setServiceUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
@@ -314,6 +314,22 @@ const ConnectionPage: React.FC = () => {
         
         // 获取设备的服务和特征值信息
         getDeviceServicesAndCharacteristics(device);
+        
+        // 连接成功后发送当前时间到设备
+        sendCurrentTimeToDevice().then((success) => {
+          if (success) {
+            console.log('时间同步成功');
+            Taro.showToast({
+              title: '时间同步成功',
+              icon: 'success',
+              duration: 1500
+            });
+          } else {
+            console.warn('时间同步失败');
+          }
+        }).catch((error) => {
+          console.error('时间同步出错:', error);
+        });
       },
       fail: (err) => {
         console.error('连接设备失败:', err);
@@ -334,6 +350,17 @@ const ConnectionPage: React.FC = () => {
               
               // 重连成功后同样获取服务信息
               getDeviceServicesAndCharacteristics(device);
+              
+              // 重连成功后也发送当前时间到设备
+              sendCurrentTimeToDevice().then((success) => {
+                if (success) {
+                  console.log('重连后时间同步成功');
+                } else {
+                  console.warn('重连后时间同步失败');
+                }
+              }).catch((error) => {
+                console.error('重连后时间同步出错:', error);
+              });
             },
             fail: (err) => {
               console.error('重连设备也失败:', err);

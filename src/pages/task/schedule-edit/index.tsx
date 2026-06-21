@@ -6,7 +6,6 @@ import './index.scss';
 
 interface Task {
   id: string;
-  taskName: string;
   fileName: string;
   filePath: string;
   selectedDays: string[];
@@ -34,7 +33,6 @@ const ScheduleEditPage: React.FC = () => {
   ];
   
   const [scheduleData, setScheduleData] = useState<{
-    taskName: string;
     fileName: string;
     filePath: string;
     selectedDays: string[];
@@ -43,11 +41,10 @@ const ScheduleEditPage: React.FC = () => {
     startTime: string;
     endTime: string;
   }>({ 
-    taskName: '',
     fileName: availableFiles[0].name,
     filePath: availableFiles[0].path,
     selectedDays: [],
-    volume: 15,
+    volume: 3, // 默认音量为3（0-5范围）
     relayEnabled: false,
     startTime: '00:00',
     endTime: '23:59'
@@ -69,7 +66,6 @@ const ScheduleEditPage: React.FC = () => {
         
         // 更新页面状态
         setScheduleData({
-          taskName: taskData.taskName,
           fileName: taskData.fileName,
           filePath: taskData.filePath,
           selectedDays: taskData.selectedDays,
@@ -152,16 +148,6 @@ const ScheduleEditPage: React.FC = () => {
     <View className="schedule-edit-page">
       <View className="content">
         <View className="form-item">
-          <Text className="label">任务名称</Text>
-          <Input 
-            className="task-name-input"
-            placeholder="请输入任务名称"
-            value={scheduleData.taskName}
-            onInput={(e) => setScheduleData({...scheduleData, taskName: e.detail.value})}
-          />
-        </View>
-        
-        <View className="form-item">
           <Text className="label">音频</Text>
           <View className="file-picker" onClick={openFileModal}>
             {scheduleData.fileName || '请选择文件'}
@@ -192,7 +178,7 @@ const ScheduleEditPage: React.FC = () => {
             <Slider 
               value={volume} 
               min={0} 
-              max={30} 
+              max={5} 
               onChange={(e) => setScheduleData({...scheduleData, volume: e.detail.value})}
               showValue
             />
@@ -248,6 +234,17 @@ const ScheduleEditPage: React.FC = () => {
           className="confirm-button" 
           onClick={() => {
             console.log('确定按钮点击', Taro.eventCenter);
+            
+            // 校验：至少选择一天
+            if (scheduleData.selectedDays.length === 0) {
+              Taro.showToast({
+                title: '请至少选择一天',
+                icon: 'none',
+                duration: 2000
+              });
+              return;
+            }
+            
             // 根据是编辑模式还是新增模式执行不同操作
             if (isEditing) {
               // 编辑模式：更新现有任务

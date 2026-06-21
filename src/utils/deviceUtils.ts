@@ -592,3 +592,99 @@ export const writeCommandToDeviceWithSplit = async (
     }
   }
 };
+
+// 发送当前时间到设备
+export const sendCurrentTimeToDevice = async (): Promise<boolean> => {
+  try {
+    // 获取当前连接的设备
+    const device = getConnectedDevice();
+    if (!device) {
+      console.error('未找到已连接的设备');
+      return false;
+    }
+    
+    // 获取当前时间
+    const now = new Date();
+    const year = now.getFullYear() - 2000; // 从2000年算起
+    const month = now.getMonth() + 1; // 月份从0开始，需要+1
+    const dayOfWeek = now.getDay(); // 0=星期日, 1=星期一, ..., 6=星期六
+    const day = now.getDate();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const second = now.getSeconds();
+    
+    // 构造7字节时间数据
+    const timeBytes = [
+      year & 0xFF,        // 年（从2000年算起）
+      month & 0xFF,       // 月
+      dayOfWeek & 0xFF,   // 星期（0-6）
+      day & 0xFF,         // 日
+      hour & 0xFF,        // 时
+      minute & 0xFF,      // 分
+      second & 0xFF       // 秒
+    ];
+    
+    // 转换为十六进制字符串
+    const timeDataHex = timeBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    
+    console.log('当前时间:', {
+      year: now.getFullYear(),
+      month,
+      dayOfWeek,
+      day,
+      hour,
+      minute,
+      second
+    });
+    console.log('时间数据（HEX）:', timeDataHex);
+    
+    // 构造时间同步指令
+    // 格式: 7E [整体长度] 01 02 A0 [7Byte时间数据]
+    // 整体长度 = 命令码(2) + 方向(1) + 数据(7) = 10 = 0x0A
+    const command = `7E 0A 01 02 A0 ${timeDataHex}`;
+    
+    console.log('发送时间同步指令:', command);
+    
+    // 发送指令并等待确认
+    await new Promise<boolean>((resolve, reject) => {
+      let timeoutId: any;
+      
+      sendCommandToDevice(command, (data) => {
+        console.log('时间同步响应:', data);
+        
+        // 清除超时定时器
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // 检查应答是否成功
+        // 预期响应: 7E 03 02 02 A1
+        if (data && data.resValue && data.resValue.length >= 4) {
+          const responseCmd = data.resValue[1]; // 应该是 0xA1
+          
+          if (responseCmd === 0xA1) {
+            console.log('时间同步成功');
+            resolve(true);
+          } else {
+            console.warn('收到未知响应命令码:', responseCmd.toString(16));
+            resolve(false);
+          }
+        } else {
+          console.warn('收到无效应答');
+          resolve(false);
+        }
+        
+        return false; // 取消监听
+      });
+      
+      // 设置超时保护（3秒）
+      timeoutId = setTimeout(() => {
+        console.error('等待时间同步应答超时');
+        reject(new Error('等待时间同步应答超时'));
+      }, 3000);
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('发送时间同步失败:', error);
+    return false;
+  }
+};

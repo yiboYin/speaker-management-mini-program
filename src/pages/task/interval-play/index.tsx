@@ -40,7 +40,7 @@ const IntervalPlayPage: React.FC = () => {
   }>({ 
     fileName: availableFiles[0].name,
     filePath: availableFiles[0].path,
-    volume: 15,
+    volume: 3, // 默认音量为3（0-5范围）
     relayEnabled: false,
     interval: 5
   });
@@ -138,7 +138,7 @@ const IntervalPlayPage: React.FC = () => {
             <Slider 
               value={volume} 
               min={0} 
-              max={30} 
+              max={5} 
               onChange={(e) => setPlayData({...playData, volume: e.detail.value})}
               showValue
             />

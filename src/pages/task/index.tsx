@@ -62,10 +62,13 @@ const TaskPage: React.FC = () => {
     
     // 监听新增定时任务事件
     Taro.eventCenter.on('addNewTask', (newTask) => {
-      // 生成唯一ID
+      // 生成唯一ID和任务名称
+      const newId = Date.now().toString();
+      const taskCount = tasks.length + 1;
       const newTaskWithId = {
         ...newTask,
-        id: Date.now().toString(),
+        id: newId,
+        taskName: `定时任务 ${taskCount}`, // 自动生成任务名称
         isEnabled: true // 新增任务默认启用
       };
       // 在最上方插入新任务
@@ -83,10 +86,13 @@ const TaskPage: React.FC = () => {
     
     // 监听新增间隔任务事件
     Taro.eventCenter.on('addNewIntervalTask', (newTask) => {
-      // 生成唯一ID
+      // 生成唯一ID和任务名称
+      const newId = (Date.now() + Math.random()).toString();
+      const intervalTaskCount = intervalTasks.length + 1;
       const newTaskWithId = {
         ...newTask,
-        id: (Date.now() + Math.random()).toString(),
+        id: newId,
+        taskName: `循环任务 ${intervalTaskCount}`, // 自动生成任务名称
         isEnabled: true // 新增任务默认启用
       };
       // 在最上方插入新任务
@@ -118,107 +124,137 @@ const TaskPage: React.FC = () => {
         console.log('获取定时任务返回数据:', data);
         
         // 解析设备返回的任务数据
-        // 新协议：逐个返回单个任务，最后发送结束指令
-        // 任务格式: 7E [整体长度] 02 02 42 [任务数据] 或 结束格式: 7E 03 02 02 43
-        if (data.resValue && data.resValue.length >= 3) {
+        // 新协议：一次性返回所有任务数据，用"/"分隔
+        // 格式: 7E [整体长度] 02 02 43 [任务数据]
+        if (data.resValue && data.resValue.length >= 4) {
           const responseCmd = data.resValue[1]; // 响应命令码
           
-          // 检查是否是结束指令
+          // 检查是否是任务数据指令（0x43）
           if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_END) {
-            // 收到结束指令，获取任务完成
-            console.log('定时任务获取完成');
-            return false;
-          }
-          
-          // 检查是否是任务数据指令
-          if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_ITEM && data.resValue.length >= 4) {
-            // 解析单个任务数据格式: [ID长度][ID][文件ID长度][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
-            let currentIndex = 2; // 从第3个字节开始是任务数据
+            // 从第4个字节开始是任务数据
+            const taskDataBytes = data.resValue.slice(4);
             
-            const idLength = data.resValue[currentIndex];
-            currentIndex++;
+            // 将字节数组转换为字符串
+            const decoder = new TextDecoder('utf-8');
+            const taskDataStr = decoder.decode(new Uint8Array(taskDataBytes));
             
-            if (currentIndex + idLength < data.resValue.length) {
-              // 提取任务ID（UTF-8编码）
-              const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
-              const decoder = new TextDecoder('utf-8');
-              const id = decoder.decode(new Uint8Array(idBytes));
-              currentIndex += idLength;
+            console.log('任务数据原始字符串:', taskDataStr);
+            
+            // 按"/"分割任务
+            const taskStrings = taskDataStr.split('/').filter(s => s.length > 0);
+            
+            console.log('解析到的任务数量:', taskStrings.length);
+            
+            // 解析每个任务
+            const newTasks: Task[] = [];
+            let taskIdCounter = 1;
+            
+            for (const taskStr of taskStrings) {
+              // 任务信息格式：[文件名][音量][继电器][开始时间][结束时间][星期几][启用状态]
+              // 文件名: 4字节
+              // 音量: 1字节
+              // 继电器: 1字节
+              // 开始时间: 2字节（小时+分钟）
+              // 结束时间: 2字节（小时+分钟）
+              // 星期几: 1字节（位掩码）
+              // 启用状态: 1字节
               
-              if (currentIndex + 8 < data.resValue.length) {
-                // 文件ID长度（1字节）
-                const fileIdLength = data.resValue[currentIndex];
-                currentIndex++;
-                
-                // 文件ID（根据文件ID长度读取）
-                const fileId = data.resValue[currentIndex];
-                currentIndex += fileIdLength;
-                
-                const volume = data.resValue[currentIndex];
-                currentIndex++;
-                
-                const relayEnabled = data.resValue[currentIndex] === 0x01;
-                currentIndex++;
-                
-                // 开始时间：第1字节=小时，第2字节=分钟
-                const startHour = data.resValue[currentIndex];
-                const startMinute = data.resValue[currentIndex + 1];
-                const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
-                currentIndex += 2;
-                
-                // 结束时间：第1字节=小时，第2字节=分钟
-                const endHour = data.resValue[currentIndex];
-                const endMinute = data.resValue[currentIndex + 1];
-                const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-                currentIndex += 2;
-                
-                // 星期几是1字节（位掩码，bit0=周一，bit6=周日）
-                const daysMask = data.resValue[currentIndex];
-                currentIndex++;
-                
-                const isEnabled = data.resValue[currentIndex] === 0x01;
-                currentIndex++;
-                
-                // 根据位掩码解析星期几（新规则：bit0=周一，bit6=周日）
-                const selectedDays: string[] = [];
-                if (daysMask & 0x01) selectedDays.push('一'); // bit0: 周一
-                if (daysMask & 0x02) selectedDays.push('二'); // bit1: 周二
-                if (daysMask & 0x04) selectedDays.push('三'); // bit2: 周三
-                if (daysMask & 0x08) selectedDays.push('四'); // bit3: 周四
-                if (daysMask & 0x10) selectedDays.push('五'); // bit4: 周五
-                if (daysMask & 0x20) selectedDays.push('六'); // bit5: 周六
-                if (daysMask & 0x40) selectedDays.push('日'); // bit6: 周日
-                
-                // 根据文件ID获取文件名，这里使用占位符
-                const fileName = `音频${fileId}.mp3`;
-                const filePath = `/path/to/audio${fileId}.mp3`;
-                
-                // 添加到现有任务列表
-                setTasks(prevTasks => {
-                  const newTasks = [...prevTasks, {
-                    id,
-                    taskName: `任务 ${id}`,
-                    fileName,
-                    filePath,
-                    selectedDays,
-                    volume,
-                    relayEnabled,
-                    startTime,
-                    endTime,
-                    isEnabled
-                  }];
-                  console.log('获取到的定时任务:', newTasks);
-                  return newTasks;
-                });
+              // 将任务字符串转换为字节数组
+              const taskBytes: number[] = [];
+              for (let i = 0; i < taskStr.length; i++) {
+                taskBytes.push(taskStr.charCodeAt(i));
               }
+              
+              if (taskBytes.length < 12) {
+                console.warn('任务数据长度不足，跳过:', taskBytes.length);
+                continue;
+              }
+              
+              let currentIndex = 0;
+              
+              // 文件名（4字节）
+              const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
+              const fileNameDecoder = new TextDecoder('utf-8');
+              const fileNameWithoutExt = fileNameDecoder.decode(new Uint8Array(fileNameBytes));
+              const fileName = `${fileNameWithoutExt}.mp3`;
+              currentIndex += 4;
+              
+              // 音量（1字节）
+              const volume = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 继电器（1字节）
+              const relayEnabled = taskBytes[currentIndex] === 0x01;
+              currentIndex++;
+              
+              // 开始时间（2字节：小时+分钟）
+              const startHour = taskBytes[currentIndex];
+              const startMinute = taskBytes[currentIndex + 1];
+              const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+              currentIndex += 2;
+              
+              // 结束时间（2字节：小时+分钟）
+              const endHour = taskBytes[currentIndex];
+              const endMinute = taskBytes[currentIndex + 1];
+              const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+              currentIndex += 2;
+              
+              // 星期几（1字节，位掩码）
+              const daysMask = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 启用状态（1字节）
+              const isEnabled = taskBytes[currentIndex] === 0x01;
+              currentIndex++;
+              
+              // 根据位掩码解析星期几（bit0=周一，bit6=周日）
+              const selectedDays: string[] = [];
+              if (daysMask & 0x01) selectedDays.push('一'); // bit0: 周一
+              if (daysMask & 0x02) selectedDays.push('二'); // bit1: 周二
+              if (daysMask & 0x04) selectedDays.push('三'); // bit2: 周三
+              if (daysMask & 0x08) selectedDays.push('四'); // bit3: 周四
+              if (daysMask & 0x10) selectedDays.push('五'); // bit4: 周五
+              if (daysMask & 0x20) selectedDays.push('六'); // bit5: 周六
+              if (daysMask & 0x40) selectedDays.push('日'); // bit6: 周日
+              
+              // 生成任务ID
+              const id = `task_${String(taskIdCounter).padStart(2, '0')}`;
+              taskIdCounter++;
+              
+              newTasks.push({
+                id,
+                taskName: `定时任务 ${taskIdCounter - 1}`,
+                fileName,
+                filePath: '', // 硬件文件不需要本地路径
+                selectedDays,
+                volume,
+                relayEnabled,
+                startTime,
+                endTime,
+                isEnabled
+              });
             }
-            return true;
+            
+            console.log('解析到的定时任务:', newTasks);
+            setTasks(newTasks);
+            
+            if (newTasks.length === 0) {
+              Taro.showToast({
+                title: '暂无定时任务',
+                icon: 'none'
+              });
+            } else {
+              Taro.showToast({
+                title: `获取到 ${newTasks.length} 个任务`,
+                icon: 'success',
+                duration: 1500
+              });
+            }
           }
         }
       });
     } catch (error) {
       console.error('获取定时任务失败:', error);
-      // 如果获取设备任务失败，仍然可以使用空数组
       setTasks([]);
     }
   };
@@ -230,82 +266,111 @@ const TaskPage: React.FC = () => {
         console.log('获取循环任务返回数据:', data);
         
         // 解析设备返回的循环任务数据
-        // 新协议：逐个返回单个任务，最后发送结束指令
-        // 任务格式: 7E [整体长度] 02 02 52 [任务数据] 或 结束格式: 7E 03 02 02 53
-        if (data.resValue && data.resValue.length >= 3) {
+        // 新协议：一次性返回所有任务数据，用"/"分隔
+        // 格式: 7E [整体长度] 02 02 53 [任务数据]
+        if (data.resValue && data.resValue.length >= 4) {
           const responseCmd = data.resValue[1]; // 响应命令码
           
-          // 检查是否是结束指令
+          // 检查是否是任务数据指令（0x53）
           if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_END) {
-            // 收到结束指令，获取任务完成
-            console.log('循环任务获取完成');
-            return false;
-          }
-          
-          // 检查是否是任务数据指令
-          if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_ITEM && data.resValue.length >= 4) {
-            // 解析单个任务数据格式: [ID长度][ID][文件ID长度][文件ID][音量][继电器][间隔时间][启用状态]
-            let currentIndex = 2; // 从第3个字节开始是任务数据
+            // 从第4个字节开始是任务数据
+            const taskDataBytes = data.resValue.slice(4);
             
-            const idLength = data.resValue[currentIndex];
-            currentIndex++;
+            // 将字节数组转换为字符串
+            const decoder = new TextDecoder('utf-8');
+            const taskDataStr = decoder.decode(new Uint8Array(taskDataBytes));
             
-            if (currentIndex + idLength < data.resValue.length) {
-              // 提取任务ID（UTF-8编码）
-              const idBytes = data.resValue.slice(currentIndex, currentIndex + idLength);
-              const decoder = new TextDecoder('utf-8');
-              const id = decoder.decode(new Uint8Array(idBytes));
-              currentIndex += idLength;
+            console.log('任务数据原始字符串:', taskDataStr);
+            
+            // 按"/"分割任务
+            const taskStrings = taskDataStr.split('/').filter(s => s.length > 0);
+            
+            console.log('解析到的任务数量:', taskStrings.length);
+            
+            // 解析每个任务
+            const newTasks: IntervalTask[] = [];
+            let taskIdCounter = 1;
+            
+            for (const taskStr of taskStrings) {
+              // 任务信息格式：[文件名][音量][继电器][间隔时间][启用状态]
+              // 文件名: 4字节
+              // 音量: 1字节
+              // 继电器: 1字节
+              // 间隔时间: 1字节
+              // 启用状态: 1字节
               
-              if (currentIndex + 6 < data.resValue.length) {
-                // 文件ID长度（1字节）
-                const fileIdLength = data.resValue[currentIndex];
-                currentIndex++;
-                
-                // 文件ID（根据文件ID长度读取）
-                const fileId = data.resValue[currentIndex];
-                currentIndex += fileIdLength;
-                
-                const volume = data.resValue[currentIndex];
-                currentIndex++;
-                
-                const relayEnabled = data.resValue[currentIndex] === 0x01;
-                currentIndex++;
-                
-                const interval = data.resValue[currentIndex];
-                currentIndex++;
-                
-                const isEnabled = data.resValue[currentIndex] === 0x01;
-                currentIndex++;
-                
-                // 根据文件ID获取文件名，这里使用占位符
-                const fileName = `音频${fileId}.mp3`;
-                const filePath = `/path/to/audio${fileId}.mp3`;
-                
-                // 添加到现有任务列表
-                setIntervalTasks(prevTasks => {
-                  const newTasks = [...prevTasks, {
-                    id,
-                    taskName: `循环任务 ${id}`,
-                    fileName,
-                    filePath,
-                    volume,
-                    relayEnabled,
-                    interval,
-                    isEnabled
-                  }];
-                  console.log('获取到的循环任务:', newTasks);
-                  return newTasks;
-                });
+              // 将任务字符串转换为字节数组
+              const taskBytes: number[] = [];
+              for (let i = 0; i < taskStr.length; i++) {
+                taskBytes.push(taskStr.charCodeAt(i));
               }
+              
+              if (taskBytes.length < 8) {
+                console.warn('任务数据长度不足，跳过:', taskBytes.length);
+                continue;
+              }
+              
+              let currentIndex = 0;
+              
+              // 文件名（4字节）
+              const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
+              const fileNameDecoder = new TextDecoder('utf-8');
+              const fileNameWithoutExt = fileNameDecoder.decode(new Uint8Array(fileNameBytes));
+              const fileName = `${fileNameWithoutExt}.mp3`;
+              currentIndex += 4;
+              
+              // 音量（1字节）
+              const volume = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 继电器（1字节）
+              const relayEnabled = taskBytes[currentIndex] === 0x01;
+              currentIndex++;
+              
+              // 间隔时间（1字节）
+              const interval = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 启用状态（1字节）
+              const isEnabled = taskBytes[currentIndex] === 0x01;
+              currentIndex++;
+              
+              // 生成任务ID
+              const id = `interval_${String(taskIdCounter).padStart(2, '0')}`;
+              taskIdCounter++;
+              
+              newTasks.push({
+                id,
+                taskName: `循环任务 ${taskIdCounter - 1}`,
+                fileName,
+                filePath: '', // 硬件文件不需要本地路径
+                volume,
+                relayEnabled,
+                interval,
+                isEnabled
+              });
+            }
+            
+            console.log('解析到的循环任务:', newTasks);
+            setIntervalTasks(newTasks);
+            
+            if (newTasks.length === 0) {
+              Taro.showToast({
+                title: '暂无循环任务',
+                icon: 'none'
+              });
+            } else {
+              Taro.showToast({
+                title: `获取到 ${newTasks.length} 个任务`,
+                icon: 'success',
+                duration: 1500
+              });
             }
           }
         }
-        return false;
       });
     } catch (error) {
       console.error('获取循环任务失败:', error);
-      // 如果获取设备任务失败，仍然可以使用空数组
       setIntervalTasks([]);
     }
   };
@@ -341,73 +406,130 @@ const TaskPage: React.FC = () => {
     return new Uint8Array(bytes);
   };
   
+  // 辅助函数：构造单个定时任务的数据字节数组
+  // 数据格式：[任务ID长度(1字节)][任务ID(1字节)][文件ID长度(1字节=4)][文件ID(4字节=文件名)][音量(1字节)][继电器(1字节)][开始时间(2字节:小时+分钟)][结束时间(2字节:小时+分钟)][星期掩码(1字节)][启用状态(1字节)]
+  const buildScheduleTaskBytes = (task: Task, taskIndex: number): number[] => {
+    const taskBytes: number[] = [];
+    
+    // 任务ID：使用任务下标位置（从1开始）
+    const taskId = String(taskIndex + 1); // 下标从0开始，所以+1
+    const taskIdBytes = Array.from(stringToUtf8Bytes(taskId));
+    taskBytes.push(taskIdBytes.length); // 任务ID长度（1字节）
+    taskBytes.push(...taskIdBytes);     // 任务ID（N字节）
+    
+    // 文件ID：使用文件名（4位数字，固定4字节）
+    // 从fileName中提取纯数字部分（去掉.mp3后缀）
+    const fileNameWithoutExt = task.fileName.replace(/\.mp3$/i, '');
+    const fileIdBytes = Array.from(stringToUtf8Bytes(fileNameWithoutExt));
+    taskBytes.push(4);              // 文件ID长度（固定4字节）
+    taskBytes.push(...fileIdBytes); // 文件ID（4字节，如"1111"）
+    
+    // 音量（1字节，范围0-30）
+    taskBytes.push(task.volume);
+    
+    // 继电器（1字节，0x00=关，0x01=开）
+    taskBytes.push(task.relayEnabled ? 0x01 : 0x00);
+    
+    // 开始时间（2字节：小时+分钟，HEX格式）
+    const [startHour, startMinute] = task.startTime.split(':').map(Number);
+    taskBytes.push(startHour);   // 小时（0-23）
+    taskBytes.push(startMinute); // 分钟（0-59）
+    
+    // 结束时间（2字节：小时+分钟，HEX格式）
+    const [endHour, endMinute] = task.endTime.split(':').map(Number);
+    taskBytes.push(endHour);   // 小时（0-23）
+    taskBytes.push(endMinute); // 分钟（0-59）
+    
+    // 星期几（1字节，位掩码，符合ISO 8601：bit0=周一到bit6=周日）
+    let daysMask = 0;
+    if (task.selectedDays.includes('一')) daysMask |= 0x01; // bit0: 周一
+    if (task.selectedDays.includes('二')) daysMask |= 0x02; // bit1: 周二
+    if (task.selectedDays.includes('三')) daysMask |= 0x04; // bit2: 周三
+    if (task.selectedDays.includes('四')) daysMask |= 0x08; // bit3: 周四
+    if (task.selectedDays.includes('五')) daysMask |= 0x10; // bit4: 周五
+    if (task.selectedDays.includes('六')) daysMask |= 0x20; // bit5: 周六
+    if (task.selectedDays.includes('日')) daysMask |= 0x40; // bit6: 周日
+    taskBytes.push(daysMask);
+    
+    // 启用状态（1字节，0x00=禁用，0x01=启用）
+    taskBytes.push(task.isEnabled ? 0x01 : 0x00);
+    
+    return taskBytes;
+  };
+  
+  // 辅助函数：构造单个间隔播放任务的数据字节数组
+  // 数据格式：[任务ID长度(1字节)][任务ID(1字节)][文件ID长度(1字节=4)][文件ID(4字节=文件名)][音量(1字节)][继电器(1字节)][间隔时间(1字节)][启用状态(1字节)]
+  const buildIntervalTaskBytes = (task: IntervalTask, taskIndex: number): number[] => {
+    const taskBytes: number[] = [];
+    
+    // 任务ID：使用任务下标位置（从1开始）
+    const taskId = String(taskIndex + 1); // 下标从0开始，所以+1
+    const taskIdBytes = Array.from(stringToUtf8Bytes(taskId));
+    taskBytes.push(taskIdBytes.length); // 任务ID长度（1字节）
+    taskBytes.push(...taskIdBytes);     // 任务ID（N字节）
+    
+    // 文件ID：使用文件名（4位数字，固定4字节）
+    // 从fileName中提取纯数字部分（去掉.mp3后缀）
+    const fileNameWithoutExt = task.fileName.replace(/\.mp3$/i, '');
+    const fileIdBytes = Array.from(stringToUtf8Bytes(fileNameWithoutExt));
+    taskBytes.push(4);              // 文件ID长度（固定4字节）
+    taskBytes.push(...fileIdBytes); // 文件ID（4字节，如"1111"）
+    
+    // 音量（1字节，范围0-30）
+    taskBytes.push(task.volume);
+    
+    // 继电器（1字节，0x00=关，0x01=开）
+    taskBytes.push(task.relayEnabled ? 0x01 : 0x00);
+    
+    // 间隔时间（1字节，单位：秒）
+    taskBytes.push(task.interval);
+    
+    // 启用状态（1字节，0x00=禁用，0x01=启用）
+    taskBytes.push(task.isEnabled ? 0x01 : 0x00);
+    
+    return taskBytes;
+  };
+  
   // 同步任务到设备
   const syncTasksToDevice = async () => {
     try {
       // 同步定时任务
       if (tasks.length > 0) {
-        for (const task of tasks) {
-          // 构造每个任务的数据
-          // [ID长度][ID][文件ID长度][文件ID][音量][继电器][开始时间][结束时间][星期几][启用状态]
+        // 构造所有任务的数据，用"/"分隔符拼接
+        const allTaskBytes: number[] = [];
+        
+        for (let i = 0; i < tasks.length; i++) {
+          // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
+          allTaskBytes.push(0x2F);
           
-          // 计算ID长度和ID的十六进制表示
-          const idBytes = stringToUtf8Bytes(task.id);
-          const idLength = idBytes.length;
-          const idHex = Array.from(idBytes)
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join(' ');
+          // 添加任务数据（传入任务索引）
+          const taskBytes = buildScheduleTaskBytes(tasks[i], i);
+          allTaskBytes.push(...taskBytes);
+        }
+        
+        // 将字节数组转换为十六进制字符串
+        const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        
+        // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
+        const totalLength = 2 + 1 + allTaskBytes.length;
+        const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
+        
+        // 构造完整指令
+        const command = `7E ${totalLengthHex} 01 02 40 ${taskDataHex}`;
+        
+        console.log('发送定时任务同步指令（一次性）:', command);
+        console.log('任务数量:', tasks.length);
+        console.log('数据总长度:', allTaskBytes.length, '字节');
+        
+        // 发送指令并等待响应
+        await new Promise<boolean>((resolve, reject) => {
+          let timeoutId: any;
           
-          // 解析时间字符串，第一个字节代表小时，第二个字节代表分钟
-          const [startHour, startMinute] = task.startTime.split(':').map(Number);
-          const startTimeHex = [startHour, startMinute]
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join(' ');
-          
-          const [endHour, endMinute] = task.endTime.split(':').map(Number);
-          const endTimeHex = [endHour, endMinute]
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join(' ');
-          
-          // 从文件路径解析文件ID
-          const matchResult = task.filePath.match(/\d+/);
-          const fileId = parseInt(matchResult ? matchResult[0] : '1');
-          const fileIdLength = fileId.toString(16).length > 1 ? 1 : 1; // 文件ID长度（固定1字节）
-          
-          // 计算星期几位掩码
-          let daysMask = 0;
-          if (task.selectedDays.includes('一')) daysMask |= 0x01; // bit0: 周一
-          if (task.selectedDays.includes('二')) daysMask |= 0x02; // bit1: 周二
-          if (task.selectedDays.includes('三')) daysMask |= 0x04; // bit2: 周三
-          if (task.selectedDays.includes('四')) daysMask |= 0x08; // bit3: 周四
-          if (task.selectedDays.includes('五')) daysMask |= 0x10; // bit4: 周五
-          if (task.selectedDays.includes('六')) daysMask |= 0x20; // bit5: 周六
-          if (task.selectedDays.includes('日')) daysMask |= 0x40; // bit6: 周日
-          
-          // 构造任务数据
-          const taskData = [
-            idLength.toString(16).padStart(2, '0'),  // ID长度
-            idHex,                                     // ID
-            fileIdLength.toString(16).padStart(2, '0'), // 文件ID长度
-            fileId.toString(16).padStart(2, '0'),      // 文件ID
-            task.volume.toString(16).padStart(2, '0'), // 音量
-            (task.relayEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0'), // 继电器
-            startTimeHex,                              // 开始时间
-            endTimeHex,                                // 结束时间
-            daysMask.toString(16).padStart(2, '0'),    // 星期几
-            (task.isEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0')     // 启用状态
-          ].join(' ');
-          
-          // 计算整体长度：命令码(02 40) + 方向(01) + 任务数据长度
-          const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
-          const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
-          const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
-          
-          const singleTaskCommand = TASK_COMMANDS.UPDATE_SCHEDULE_TASK(totalLength.toString(16).padStart(2, '0'), taskData);
-          
-          console.log('发送定时任务同步指令:', singleTaskCommand);
-          
-          await sendCommandToDevice(singleTaskCommand, (data) => {
+          sendCommandToDevice(command, (data) => {
             console.log('定时任务同步响应:', data);
+            
+            // 清除超时定时器
+            if (timeoutId) clearTimeout(timeoutId);
             
             // 检查响应是否成功
             if (data.resValue && data.resValue.length >= 4) {
@@ -415,65 +537,86 @@ const TaskPage: React.FC = () => {
               const result = data.resValue[3]; // 结果 01=成功, 00=失败
               
               if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-                Taro.showToast({
-                  title: '定时任务同步成功',
-                  icon: 'success',
-                  duration: 2000
-                });
+                console.log('定时任务同步成功');
+                resolve(true);
               } else {
-                Taro.showToast({
-                  title: '定时任务同步失败',
-                  icon: 'none',
-                  duration: 2000
-                });
+                console.warn('定时任务同步失败');
+                resolve(false);
               }
+            } else {
+              console.warn('收到无效响应');
+              resolve(false);
             }
-            return false;
+            
+            return false; // 取消监听
           });
-        }
+          
+          // 设置超时保护（5秒）
+          timeoutId = setTimeout(() => {
+            console.error('等待定时任务同步响应超时');
+            reject(new Error('等待响应超时'));
+          }, 5000);
+        }).then((success) => {
+          if (success) {
+            Taro.showToast({
+              title: `已同步 ${tasks.length} 个定时任务`,
+              icon: 'success',
+              duration: 2000
+            });
+          } else {
+            Taro.showToast({
+              title: '定时任务同步失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        }).catch((error) => {
+          console.error('发送定时任务指令失败:', error);
+          Taro.showToast({
+            title: '同步任务失败',
+            icon: 'none',
+            duration: 2000
+          });
+        });
       }
       
       // 同步循环任务
       if (intervalTasks.length > 0) {
-        for (const task of intervalTasks) {
-          // 构造每个循环任务的数据
-          // [ID长度][ID][文件ID长度][文件ID][音量][继电器][间隔时间][启用状态]
+        // 构造所有任务的数据，用"/"分隔符拼接
+        const allTaskBytes: number[] = [];
+        
+        for (let i = 0; i < intervalTasks.length; i++) {
+          // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
+          allTaskBytes.push(0x2F);
           
-          // 计算ID长度和ID的十六进制表示
-          const idBytes = stringToUtf8Bytes(task.id);
-          const idLength = idBytes.length;
-          const idHex = Array.from(idBytes)
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join(' ');
+          // 添加任务数据（传入任务索引）
+          const taskBytes = buildIntervalTaskBytes(intervalTasks[i], i);
+          allTaskBytes.push(...taskBytes);
+        }
+        
+        // 将字节数组转换为十六进制字符串
+        const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        
+        // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
+        const totalLength = 2 + 1 + allTaskBytes.length;
+        const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
+        
+        // 构造完整指令
+        const command = `7E ${totalLengthHex} 01 02 50 ${taskDataHex}`;
+        
+        console.log('发送循环任务同步指令（一次性）:', command);
+        console.log('任务数量:', intervalTasks.length);
+        console.log('数据总长度:', allTaskBytes.length, '字节');
+        
+        // 发送指令并等待响应
+        await new Promise<boolean>((resolve, reject) => {
+          let timeoutId: any;
           
-          // 从文件路径解析文件ID
-          const matchResult2 = task.filePath.match(/\d+/);
-          const fileId = parseInt(matchResult2 ? matchResult2[0] : '1');
-          const fileIdLength = 1; // 文件ID长度（固定1字节）
-          
-          // 构造任务数据
-          const taskData = [
-            idLength.toString(16).padStart(2, '0'),  // ID长度
-            idHex,                                     // ID
-            fileIdLength.toString(16).padStart(2, '0'), // 文件ID长度
-            fileId.toString(16).padStart(2, '0'),      // 文件ID
-            task.volume.toString(16).padStart(2, '0'), // 音量
-            (task.relayEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0'), // 继电器
-            task.interval.toString(16).padStart(2, '0'),                   // 间隔时间
-            (task.isEnabled ? 0x01 : 0x00).toString(16).padStart(2, '0')     // 启用状态
-          ].join(' ');
-          
-          // 计算整体长度：命令码(02 50) + 方向(01) + 任务数据长度
-          const taskDataArray = taskData.split(' ').map(hex => parseInt(hex, 16));
-          const dataLength = 1 + taskDataArray.length; // ID长度字节 + 任务数据字节数
-          const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
-          
-          const singleIntervalCommand = TASK_COMMANDS.UPDATE_INTERVAL_TASK(totalLength.toString(16).padStart(2, '0'), taskData);
-          
-          console.log('发送循环任务同步指令:', singleIntervalCommand);
-          
-          await sendCommandToDevice(singleIntervalCommand, (data) => {
+          sendCommandToDevice(command, (data) => {
             console.log('循环任务同步响应:', data);
+            
+            // 清除超时定时器
+            if (timeoutId) clearTimeout(timeoutId);
             
             // 检查响应是否成功
             if (data.resValue && data.resValue.length >= 4) {
@@ -481,22 +624,47 @@ const TaskPage: React.FC = () => {
               const result = data.resValue[3]; // 结果 01=成功, 00=失败
               
               if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-                Taro.showToast({
-                  title: '循环任务同步成功',
-                  icon: 'success',
-                  duration: 2000
-                });
+                console.log('循环任务同步成功');
+                resolve(true);
               } else {
-                Taro.showToast({
-                  title: '循环任务同步失败',
-                  icon: 'none',
-                  duration: 2000
-                });
+                console.warn('循环任务同步失败');
+                resolve(false);
               }
+            } else {
+              console.warn('收到无效响应');
+              resolve(false);
             }
-            return false;
+            
+            return false; // 取消监听
           });
-        }
+          
+          // 设置超时保护（5秒）
+          timeoutId = setTimeout(() => {
+            console.error('等待循环任务同步响应超时');
+            reject(new Error('等待响应超时'));
+          }, 5000);
+        }).then((success) => {
+          if (success) {
+            Taro.showToast({
+              title: `已同步 ${intervalTasks.length} 个循环任务`,
+              icon: 'success',
+              duration: 2000
+            });
+          } else {
+            Taro.showToast({
+              title: '循环任务同步失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        }).catch((error) => {
+          console.error('发送循环任务指令失败:', error);
+          Taro.showToast({
+            title: '同步任务失败',
+            icon: 'none',
+            duration: 2000
+          });
+        });
       }
       
       if (tasks.length === 0 && intervalTasks.length === 0) {
