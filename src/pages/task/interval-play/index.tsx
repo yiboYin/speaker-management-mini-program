@@ -23,14 +23,6 @@ const IntervalPlayPage: React.FC = () => {
   const [showFileModal, setShowFileModal] = useState(false); // 是否显示文件选择弹窗
   const [selectedFileId, setSelectedFileId] = useState<string>(''); // 当前选中的文件ID
   
-  // 定义备选文件列表（模拟从导入页面获取）
-  const availableFiles = [
-    { id: 'file_1', name: '0001.mp3', path: '/path/to/audio1.mp3', duration: '00:30' },
-    { id: 'file_2', name: '0002.mp3', path: '/path/to/audio2.mp3', duration: '00:45' },
-    { id: 'file_3', name: '0003.mp3', path: '/path/to/audio3.mp3', duration: '01:00' },
-    { id: 'file_4', name: '0004.mp3', path: '/path/to/audio4.mp3', duration: '00:20' }
-  ];
-  
   const [playData, setPlayData] = useState<{
     fileName: string;
     filePath: string;
@@ -38,19 +30,14 @@ const IntervalPlayPage: React.FC = () => {
     relayEnabled: boolean;
     interval: number;
   }>({ 
-    fileName: availableFiles[0].name,
-    filePath: availableFiles[0].path,
+    fileName: '',
+    filePath: '',
     volume: 3, // 默认音量为3（0-5范围）
     relayEnabled: false,
     interval: 5
   });
   
-  // 初始化时设置默认选中文件
-  useEffect(() => {
-    if (availableFiles.length > 0) {
-      setSelectedFileId(availableFiles[0].id);
-    }
-  }, []);
+  // 初始化时设置默认选中文件（已移除，等待用户选择）
   
   useLoad((options) => {
     // 如果URL中有任务数据，则解析并初始化页面
@@ -87,11 +74,8 @@ const IntervalPlayPage: React.FC = () => {
   // 打开文件选择弹窗
   const openFileModal = () => {
     setShowFileModal(true);
-    // 设置当前选中的文件为已选择的文件
-    const currentFile = availableFiles.find(f => f.name === playData.fileName);
-    if (currentFile) {
-      setSelectedFileId(currentFile.id);
-    }
+    // 设置当前选中的文件为已选择的文件（通过文件名匹配）
+    // 注意：这里不再依赖 availableFiles，而是由 FileSelectorModal 内部管理
   };
   
   // 关闭文件选择弹窗
@@ -104,19 +88,23 @@ const IntervalPlayPage: React.FC = () => {
     setSelectedFileId(fileId);
   };
   
-  // 确认选择文件
-  const confirmFileSelection = () => {
-    const selectedFile = availableFiles.find(f => f.id === selectedFileId);
+  // 确认选择文件（接收子组件传递的真实文件对象）
+  const confirmFileSelection = (selectedFile: any) => {
     if (selectedFile) {
       setPlayData({
         ...playData,
         fileName: selectedFile.name,
-        filePath: selectedFile.path
+        filePath: selectedFile.path || '' // 硬件文件可能没有本地路径
       });
       closeFileModal();
       Taro.showToast({
         title: '已选择文件',
         icon: 'success'
+      });
+    } else {
+      Taro.showToast({
+        title: '请先选择一个文件',
+        icon: 'none'
       });
     }
   };

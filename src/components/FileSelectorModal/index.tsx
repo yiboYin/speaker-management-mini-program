@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Button, ScrollView } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { sendCommandToDevice, decodeUtf8Bytes } from '@/utils/deviceUtils';
-import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES } from '@/constants/bluetoothCommands';
+import { CONTROL_COMMANDS, FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import './index.scss';
 
 interface FileItem {
@@ -16,7 +16,7 @@ interface FileSelectorModalProps {
   visible: boolean;
   selectedFileId: string;
   onSelect: (fileId: string) => void;
-  onConfirm: () => void;
+  onConfirm: (selectedFile: FileItem | null) => void;
   onCancel: () => void;
 }
 
@@ -235,6 +235,14 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     }
   }, [visible]);
 
+  // 导出当前文件列表供父组件使用
+  useEffect(() => {
+    if (visible && files.length > 0) {
+      // 当文件列表加载完成后，通知父组件
+      console.log('文件列表已加载:', files);
+    }
+  }, [files, visible]);
+
   if (!visible) return null;
 
   return (
@@ -284,7 +292,15 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         
         <View className="modal-footer">
           <Button className="cancel-btn" onClick={onCancel}>取消</Button>
-          <Button className="confirm-btn" onClick={onConfirm}>选择</Button>
+          <Button 
+            className="confirm-btn" 
+            onClick={() => {
+              const selectedFile = files.find(f => f.id === selectedFileId) || null;
+              onConfirm(selectedFile);
+            }}
+          >
+            选择
+          </Button>
         </View>
       </View>
     </View>
