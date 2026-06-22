@@ -117,171 +117,183 @@ const SettingPage: React.FC = () => {
       case 'volumeDown':
         command = CONTROL_COMMANDS.VOLUME_DOWN;
         break;
+      // case 'timeLoop':
+      //   // 先获取设备状态，然后切换到点循环状态
+      //   sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
+      //     console.log('设备状态返回数据:', data);
+      //     
+      //     // 解析设备状态返回数据
+      //     // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
+      //     if (data.resValue && data.resValue.length >= 6) {
+      //       // 状态字节格式：[开关机][定时][上电播放][到点循环]
+      //       const timeLoopStatus = data.resValue[5]; // 到点循环状态在第6个字节
+      //       
+      //       // 根据当前到点循环状态切换
+      //       if (timeLoopStatus === 0x00) {
+      //         // 当前为关闭状态，发送开启指令
+      //         command = CONTROL_COMMANDS.TIME_LOOP_ENABLE;
+      //       } else {
+      //         // 当前为开启状态，发送关闭指令
+      //         command = CONTROL_COMMANDS.TIME_LOOP_DISABLE;
+      //       }
+      //       
+      //       sendCommandToDevice(command, (data) => {
+      //         console.log('循环模式操作返回数据:', data);
+      //         return false;
+      //       }).then(() => {
+      //         Taro.showToast({
+      //           title: '循环模式指令发送成功',
+      //           icon: 'success',
+      //           duration: 2000
+      //         });
+      //       }).catch((error) => {
+      //         console.error('发送循环模式指令失败:', error);
+      //         Taro.showToast({
+      //           title: '发送循环模式指令失败',
+      //           icon: 'none',
+      //           duration: 2000
+      //         });
+      //       });
+      //     } else {
+      //       console.error('设备状态数据格式不正确');
+      //       Taro.showToast({
+      //         title: '设备状态数据格式不正确',
+      //         icon: 'none',
+      //         duration: 2000
+      //       });
+      //     }
+      //     return false; // 返回，避免后续执行
+      //   }).catch((error) => {
+      //     console.error('获取设备状态失败:', error);
+      //     Taro.showToast({
+      //       title: '获取设备状态失败',
+      //       icon: 'none',
+      //       duration: 2000
+      //     });
+      //   });
+      //   return false; // 返回，避免执行后续的通用发送逻辑
       case 'timeLoop':
-        // 先获取设备状态，然后切换到点循环状态
-        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-          console.log('设备状态返回数据:', data);
-          
-          // 解析设备状态返回数据
-          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-          if (data.resValue && data.resValue.length >= 6) {
-            // 状态字节格式：[开关机][定时][上电播放][到点循环]
-            const timeLoopStatus = data.resValue[5]; // 到点循环状态在第6个字节
-            
-            // 根据当前到点循环状态切换
-            if (timeLoopStatus === 0x00) {
-              // 当前为关闭状态，发送开启指令
-              command = CONTROL_COMMANDS.TIME_LOOP_ENABLE;
-            } else {
-              // 当前为开启状态，发送关闭指令
-              command = CONTROL_COMMANDS.TIME_LOOP_DISABLE;
-            }
-            
-            sendCommandToDevice(command, (data) => {
-              console.log('循环模式操作返回数据:', data);
-              return false;
-            }).then(() => {
-              Taro.showToast({
-                title: '循环模式指令发送成功',
-                icon: 'success',
-                duration: 2000
-              });
-            }).catch((error) => {
-              console.error('发送循环模式指令失败:', error);
-              Taro.showToast({
-                title: '发送循环模式指令失败',
-                icon: 'none',
-                duration: 2000
-              });
-            });
-          } else {
-            console.error('设备状态数据格式不正确');
-            Taro.showToast({
-              title: '设备状态数据格式不正确',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-          return false; // 返回，避免后续执行
-        }).catch((error) => {
-          console.error('获取设备状态失败:', error);
-          Taro.showToast({
-            title: '获取设备状态失败',
-            icon: 'none',
-            duration: 2000
-          });
-        });
-        return false; // 返回，避免执行后续的通用发送逻辑
+        // 直接发送循环模式开启指令
+        command = CONTROL_COMMANDS.TIME_LOOP_ENABLE;
+        break;
+      // case 'sensorMode':
+      //   // 先获取设备状态，然后切换感应模式状态
+      //   sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
+      //     console.log('设备状态返回数据:', data);
+      //     
+      //     // 解析设备状态返回数据
+      //     // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
+      //     if (data.resValue && data.resValue.length >= 7) {
+      //       // 状态字节格式：[开关机][定时][上电播放][到点循环][感应模式]
+      //       const sensorModeStatus = data.resValue[6]; // 感应模式状态在第7个字节
+      //       
+      //       // 根据当前感应模式状态切换
+      //       if (sensorModeStatus === 0x00) {
+      //         // 当前为关闭状态，发送开启指令
+      //         command = CONTROL_COMMANDS.SENSOR_MODE_ENABLE;
+      //       } else {
+      //         // 当前为开启状态，发送关闭指令
+      //         command = CONTROL_COMMANDS.SENSOR_MODE_DISABLE;
+      //       }
+      //       
+      //       sendCommandToDevice(command, (data) => {
+      //         console.log('感应模式操作返回数据:', data);
+      //         return false;
+      //       }).then(() => {
+      //         Taro.showToast({
+      //           title: '感应模式指令发送成功',
+      //           icon: 'success',
+      //           duration: 2000
+      //         });
+      //       }).catch((error) => {
+      //         console.error('发送感应模式指令失败:', error);
+      //         Taro.showToast({
+      //           title: '发送感应模式指令失败',
+      //           icon: 'none',
+      //           duration: 2000
+      //         });
+      //       });
+      //     } else {
+      //       console.error('设备状态数据格式不正确');
+      //       Taro.showToast({
+      //         title: '设备状态数据格式不正确',
+      //         icon: 'none',
+      //         duration: 2000
+      //       });
+      //     }
+      //     return false; // 返回，避免后续执行
+      //   }).catch((error) => {
+      //     console.error('获取设备状态失败:', error);
+      //     Taro.showToast({
+      //       title: '获取设备状态失败',
+      //       icon: 'none',
+      //       duration: 2000
+      //     });
+      //   });
+      //   return false; // 返回，避免执行后续的通用发送逻辑
       case 'sensorMode':
-        // 先获取设备状态，然后切换感应模式状态
-        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-          console.log('设备状态返回数据:', data);
-          
-          // 解析设备状态返回数据
-          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-          if (data.resValue && data.resValue.length >= 7) {
-            // 状态字节格式：[开关机][定时][上电播放][到点循环][感应模式]
-            const sensorModeStatus = data.resValue[6]; // 感应模式状态在第7个字节
-            
-            // 根据当前感应模式状态切换
-            if (sensorModeStatus === 0x00) {
-              // 当前为关闭状态，发送开启指令
-              command = CONTROL_COMMANDS.SENSOR_MODE_ENABLE;
-            } else {
-              // 当前为开启状态，发送关闭指令
-              command = CONTROL_COMMANDS.SENSOR_MODE_DISABLE;
-            }
-            
-            sendCommandToDevice(command, (data) => {
-              console.log('感应模式操作返回数据:', data);
-              return false;
-            }).then(() => {
-              Taro.showToast({
-                title: '感应模式指令发送成功',
-                icon: 'success',
-                duration: 2000
-              });
-            }).catch((error) => {
-              console.error('发送感应模式指令失败:', error);
-              Taro.showToast({
-                title: '发送感应模式指令失败',
-                icon: 'none',
-                duration: 2000
-              });
-            });
-          } else {
-            console.error('设备状态数据格式不正确');
-            Taro.showToast({
-              title: '设备状态数据格式不正确',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-          return false; // 返回，避免后续执行
-        }).catch((error) => {
-          console.error('获取设备状态失败:', error);
-          Taro.showToast({
-            title: '获取设备状态失败',
-            icon: 'none',
-            duration: 2000
-          });
-        });
-        return false; // 返回，避免执行后续的通用发送逻辑
+        // 直接发送感应模式开启指令
+        command = CONTROL_COMMANDS.SENSOR_MODE_ENABLE;
+        break;
+      // case 'schedule':
+      //   // 先获取设备状态，然后切换定时状态
+      //   sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
+      //     console.log('设备状态返回数据:', data);
+      //     
+      //     // 解析设备状态返回数据
+      //     // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
+      //     if (data.resValue && data.resValue.length >= 6) {
+      //       // 状态字节格式：[开关机][定时][上电播放][到点循环]
+      //       const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
+      //       
+      //       // 根据当前定时状态切换
+      //       if (scheduleStatus === 0x00) {
+      //         // 当前为关闭状态，发送开启指令
+      //         command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
+      //       } else {
+      //         // 当前为开启状态，发送关闭指令
+      //         command = CONTROL_COMMANDS.SCHEDULE_DISABLE;
+      //       }
+      //       
+      //       sendCommandToDevice(command, (data) => {
+      //         console.log('定时模式操作返回数据:', data);
+      //         return false;
+      //       }).then(() => {
+      //         Taro.showToast({
+      //           title: '定时模式指令发送成功',
+      //           icon: 'success',
+      //           duration: 2000
+      //         });
+      //       }).catch((error) => {
+      //         console.error('发送定时模式指令失败:', error);
+      //         Taro.showToast({
+      //           title: '发送定时模式指令失败',
+      //           icon: 'none',
+      //           duration: 2000
+      //         });
+      //       });
+      //     } else {
+      //       console.error('设备状态数据格式不正确');
+      //       Taro.showToast({
+      //         title: '设备状态数据格式不正确',
+      //         icon: 'none',
+      //         duration: 2000
+      //       });
+      //     }
+      //     return false; // 返回，避免后续执行
+      //   }).catch((error) => {
+      //     console.error('获取设备状态失败:', error);
+      //     Taro.showToast({
+      //       title: '获取设备状态失败',
+      //       icon: 'none',
+      //       duration: 2000
+      //     });
+      //   });
+      //   return false; // 返回，避免执行后续的通用发送逻辑
       case 'schedule':
-        // 先获取设备状态，然后切换定时状态
-        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
-          console.log('设备状态返回数据:', data);
-          
-          // 解析设备状态返回数据
-          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
-          if (data.resValue && data.resValue.length >= 6) {
-            // 状态字节格式：[开关机][定时][上电播放][到点循环]
-            const scheduleStatus = data.resValue[3]; // 定时状态在第4个字节
-            
-            // 根据当前定时状态切换
-            if (scheduleStatus === 0x00) {
-              // 当前为关闭状态，发送开启指令
-              command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
-            } else {
-              // 当前为开启状态，发送关闭指令
-              command = CONTROL_COMMANDS.SCHEDULE_DISABLE;
-            }
-            
-            sendCommandToDevice(command, (data) => {
-              console.log('定时模式操作返回数据:', data);
-              return false;
-            }).then(() => {
-              Taro.showToast({
-                title: '定时模式指令发送成功',
-                icon: 'success',
-                duration: 2000
-              });
-            }).catch((error) => {
-              console.error('发送定时模式指令失败:', error);
-              Taro.showToast({
-                title: '发送定时模式指令失败',
-                icon: 'none',
-                duration: 2000
-              });
-            });
-          } else {
-            console.error('设备状态数据格式不正确');
-            Taro.showToast({
-              title: '设备状态数据格式不正确',
-              icon: 'none',
-              duration: 2000
-            });
-          }
-          return false; // 返回，避免后续执行
-        }).catch((error) => {
-          console.error('获取设备状态失败:', error);
-          Taro.showToast({
-            title: '获取设备状态失败',
-            icon: 'none',
-            duration: 2000
-          });
-        });
-        return false; // 返回，避免执行后续的通用发送逻辑
+        // 直接发送定时模式开启指令
+        command = CONTROL_COMMANDS.SCHEDULE_ENABLE;
+        break;
       default:
         console.log(`未知操作: ${action}`);
         return;

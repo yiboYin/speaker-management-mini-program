@@ -88,6 +88,10 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
           } else {
             console.warn('收到未知的响应命令码:', responseCmd.toString(16));
             setLoading(false);
+            Taro.showToast({
+              title: '获取文件列表失败',
+              icon: 'none'
+            });
           }
         } else {
           console.warn('收到无效的响应数据');

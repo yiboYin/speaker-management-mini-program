@@ -489,186 +489,193 @@ const TaskPage: React.FC = () => {
   // 同步任务到设备
   const syncTasksToDevice = async () => {
     try {
-      // 同步定时任务
-      if (tasks.length > 0) {
-        // 构造所有任务的数据，用"/"分隔符拼接
-        const allTaskBytes: number[] = [];
-        
-        for (let i = 0; i < tasks.length; i++) {
-          // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
-          allTaskBytes.push(0x2F);
+      // 根据当前tab页决定同步哪种任务
+      if (activeTab === 'schedule') {
+        // 只同步定时任务
+        if (tasks.length > 0) {
+          // 构造所有任务的数据，用"/"分隔符拼接
+          const allTaskBytes: number[] = [];
           
-          // 添加任务数据（传入任务索引）
-          const taskBytes = buildScheduleTaskBytes(tasks[i], i);
-          allTaskBytes.push(...taskBytes);
-        }
-        
-        // 将字节数组转换为十六进制字符串
-        const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-        
-        // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
-        const totalLength = 2 + 1 + allTaskBytes.length;
-        const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
-        
-        // 构造完整指令
-        const command = `7E ${totalLengthHex} 01 02 40 ${taskDataHex}`;
-        
-        console.log('发送定时任务同步指令（一次性）:', command);
-        console.log('任务数量:', tasks.length);
-        console.log('数据总长度:', allTaskBytes.length, '字节');
-        
-        // 发送指令并等待响应
-        await new Promise<boolean>((resolve, reject) => {
-          let timeoutId: any;
+          for (let i = 0; i < tasks.length; i++) {
+            // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
+            allTaskBytes.push(0x2F);
+            
+            // 添加任务数据（传入任务索引）
+            const taskBytes = buildScheduleTaskBytes(tasks[i], i);
+            allTaskBytes.push(...taskBytes);
+          }
           
-          sendCommandToDevice(command, (data) => {
-            console.log('定时任务同步响应:', data);
+          // 将字节数组转换为十六进制字符串
+          const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+          
+          // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
+          const totalLength = 2 + 1 + allTaskBytes.length;
+          const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
+          
+          // 构造完整指令
+          const command = `7E ${totalLengthHex} 01 02 40 ${taskDataHex}`;
+          
+          console.log('发送定时任务同步指令（一次性）:', command);
+          console.log('任务数量:', tasks.length);
+          console.log('数据总长度:', allTaskBytes.length, '字节');
+          
+          // 发送指令并等待响应
+          await new Promise<boolean>((resolve, reject) => {
+            let timeoutId: any;
             
-            // 清除超时定时器
-            if (timeoutId) clearTimeout(timeoutId);
-            
-            // 检查响应是否成功
-            if (data.resValue && data.resValue.length >= 5) {
-              const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
-              const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
+            sendCommandToDevice(command, (data) => {
+              console.log('定时任务同步响应:', data);
               
-              if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-                console.log('定时任务同步成功');
-                resolve(true);
+              // 清除超时定时器
+              if (timeoutId) clearTimeout(timeoutId);
+              
+              // 检查响应是否成功
+              if (data.resValue && data.resValue.length >= 5) {
+                const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
+                const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
+                
+                if (responseCmd === RESPONSE_CODES.SCHEDULE_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
+                  console.log('定时任务同步成功');
+                  resolve(true);
+                } else {
+                  console.warn('定时任务同步失败');
+                  resolve(false);
+                }
               } else {
-                console.warn('定时任务同步失败');
+                console.warn('收到无效响应');
                 resolve(false);
               }
-            } else {
-              console.warn('收到无效响应');
-              resolve(false);
-            }
-            
-            return false; // 取消监听
-          });
-          
-          // 设置超时保护（5秒）
-          timeoutId = setTimeout(() => {
-            console.error('等待定时任务同步响应超时');
-            reject(new Error('等待响应超时'));
-          }, 5000);
-        }).then((success) => {
-          if (success) {
-            Taro.showToast({
-              title: `已同步 ${tasks.length} 个定时任务`,
-              icon: 'success',
-              duration: 2000
+              
+              return false; // 取消监听
             });
-          } else {
+            
+            // 设置超时保护（5秒）
+            timeoutId = setTimeout(() => {
+              console.error('等待定时任务同步响应超时');
+              reject(new Error('等待响应超时'));
+            }, 5000);
+          }).then((success) => {
+            if (success) {
+              Taro.showToast({
+                title: `已同步 ${tasks.length} 个定时任务`,
+                icon: 'success',
+                duration: 2000
+              });
+            } else {
+              Taro.showToast({
+                title: '定时任务同步失败',
+                icon: 'none',
+                duration: 2000
+              });
+            }
+          }).catch((error) => {
+            console.error('发送定时任务指令失败:', error);
             Taro.showToast({
-              title: '定时任务同步失败',
+              title: '同步任务失败',
               icon: 'none',
               duration: 2000
             });
-          }
-        }).catch((error) => {
-          console.error('发送定时任务指令失败:', error);
+          });
+        } else {
           Taro.showToast({
-            title: '同步任务失败',
+            title: '没有定时任务需要同步',
             icon: 'none',
             duration: 2000
           });
-        });
-      }
-      
-      // 同步循环任务
-      if (intervalTasks.length > 0) {
-        // 构造所有任务的数据，用"/"分隔符拼接
-        const allTaskBytes: number[] = [];
-        
-        for (let i = 0; i < intervalTasks.length; i++) {
-          // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
-          allTaskBytes.push(0x2F);
-          
-          // 添加任务数据（传入任务索引）
-          const taskBytes = buildIntervalTaskBytes(intervalTasks[i], i);
-          allTaskBytes.push(...taskBytes);
         }
-        
-        // 将字节数组转换为十六进制字符串
-        const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-        
-        // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
-        const totalLength = 2 + 1 + allTaskBytes.length;
-        const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
-        
-        // 构造完整指令
-        const command = `7E ${totalLengthHex} 01 02 50 ${taskDataHex}`;
-        
-        console.log('发送循环任务同步指令（一次性）:', command);
-        console.log('任务数量:', intervalTasks.length);
-        console.log('数据总长度:', allTaskBytes.length, '字节');
-        
-        // 发送指令并等待响应
-        await new Promise<boolean>((resolve, reject) => {
-          let timeoutId: any;
+      } else if (activeTab === 'loop') {
+        // 只同步循环任务
+        if (intervalTasks.length > 0) {
+          // 构造所有任务的数据，用"/"分隔符拼接
+          const allTaskBytes: number[] = [];
           
-          sendCommandToDevice(command, (data) => {
-            console.log('循环任务同步响应:', data);
+          for (let i = 0; i < intervalTasks.length; i++) {
+            // 添加分隔符 '/' (0x2F) - 每个任务前都加分隔符
+            allTaskBytes.push(0x2F);
             
-            // 清除超时定时器
-            if (timeoutId) clearTimeout(timeoutId);
+            // 添加任务数据（传入任务索引）
+            const taskBytes = buildIntervalTaskBytes(intervalTasks[i], i);
+            allTaskBytes.push(...taskBytes);
+          }
+          
+          // 将字节数组转换为十六进制字符串
+          const taskDataHex = allTaskBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+          
+          // 计算整体长度：命令码(2字节) + 方向(1字节) + 数据长度
+          const totalLength = 2 + 1 + allTaskBytes.length;
+          const totalLengthHex = totalLength.toString(16).padStart(2, '0').toUpperCase();
+          
+          // 构造完整指令
+          const command = `7E ${totalLengthHex} 01 02 50 ${taskDataHex}`;
+          
+          console.log('发送循环任务同步指令（一次性）:', command);
+          console.log('任务数量:', intervalTasks.length);
+          console.log('数据总长度:', allTaskBytes.length, '字节');
+          
+          // 发送指令并等待响应
+          await new Promise<boolean>((resolve, reject) => {
+            let timeoutId: any;
             
-            // 检查响应是否成功
-            if (data.resValue && data.resValue.length >= 5) {
-              const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
-              const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
+            sendCommandToDevice(command, (data) => {
+              console.log('循环任务同步响应:', data);
               
-              if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
-                console.log('循环任务同步成功');
-                resolve(true);
+              // 清除超时定时器
+              if (timeoutId) clearTimeout(timeoutId);
+              
+              // 检查响应是否成功
+              if (data.resValue && data.resValue.length >= 5) {
+                const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
+                const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
+                
+                if (responseCmd === RESPONSE_CODES.INTERVAL_TASK_UPDATE_RESULT && result === RESULT_CODES.SUCCESS) {
+                  console.log('循环任务同步成功');
+                  resolve(true);
+                } else {
+                  console.warn('循环任务同步失败');
+                  resolve(false);
+                }
               } else {
-                console.warn('循环任务同步失败');
+                console.warn('收到无效响应');
                 resolve(false);
               }
-            } else {
-              console.warn('收到无效响应');
-              resolve(false);
-            }
-            
-            return false; // 取消监听
-          });
-          
-          // 设置超时保护（5秒）
-          timeoutId = setTimeout(() => {
-            console.error('等待循环任务同步响应超时');
-            reject(new Error('等待响应超时'));
-          }, 5000);
-        }).then((success) => {
-          if (success) {
-            Taro.showToast({
-              title: `已同步 ${intervalTasks.length} 个循环任务`,
-              icon: 'success',
-              duration: 2000
+              
+              return false; // 取消监听
             });
-          } else {
+            
+            // 设置超时保护（5秒）
+            timeoutId = setTimeout(() => {
+              console.error('等待循环任务同步响应超时');
+              reject(new Error('等待响应超时'));
+            }, 5000);
+          }).then((success) => {
+            if (success) {
+              Taro.showToast({
+                title: `已同步 ${intervalTasks.length} 个循环任务`,
+                icon: 'success',
+                duration: 2000
+              });
+            } else {
+              Taro.showToast({
+                title: '循环任务同步失败',
+                icon: 'none',
+                duration: 2000
+              });
+            }
+          }).catch((error) => {
+            console.error('发送循环任务指令失败:', error);
             Taro.showToast({
-              title: '循环任务同步失败',
+              title: '同步任务失败',
               icon: 'none',
               duration: 2000
             });
-          }
-        }).catch((error) => {
-          console.error('发送循环任务指令失败:', error);
+          });
+        } else {
           Taro.showToast({
-            title: '同步任务失败',
+            title: '没有循环任务需要同步',
             icon: 'none',
             duration: 2000
           });
-        });
-      }
-      
-      if (tasks.length === 0 && intervalTasks.length === 0) {
-        Taro.showToast({
-          title: '没有任务需要同步',
-          icon: 'none',
-          duration: 2000
-        });
+        }
       }
     } catch (error) {
       console.error('同步任务到设备失败:', error);

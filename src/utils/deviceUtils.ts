@@ -288,9 +288,9 @@ export const sendCommandToDevice = async (
 export const writeCommandToDevice = async (command: string, deviceId: string, serviceUUID: string, writeUUID: string, notifyUUID?: string): Promise<boolean> => {
   // 如果命令长度超过20字节，则使用分包发送
   const buffer = hexStringToArrayBuffer(command);
-  if (buffer.byteLength > 20) {
-    return writeCommandToDeviceWithSplit(buffer, deviceId, serviceUUID, writeUUID, notifyUUID || '');
-  }
+  // if (buffer.byteLength > 20) {
+  //   return writeCommandToDeviceWithSplit(buffer, deviceId, serviceUUID, writeUUID, notifyUUID || '');
+  // }
   
   // 否则使用原方法发送
 
