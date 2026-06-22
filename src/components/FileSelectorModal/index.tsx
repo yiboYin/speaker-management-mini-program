@@ -7,9 +7,9 @@ import './index.scss';
 
 interface FileItem {
   id: string;
-  name: string;
+  name: string; // 原始文件名，用于数据传输
+  displayName: string; // 展示用的文件名（文件1、文件2...）
   path: string;
-  duration: string;
 }
 
 interface FileSelectorModalProps {
@@ -34,7 +34,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
   // 获取文件列表
   const fetchFileList = async () => {
     if (loading) return; // 防止重复请求
-    
+      
     setLoading(true);
     console.log('开始获取文件列表...');
     
@@ -42,53 +42,63 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
       // 发送读取文件列表指令
       await sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
         console.log('接收到的数据:', data);
-        
+          
         // 检查响应数据
         if (data.resValue && data.resValue.length >= 5) {
           const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
-          
+            
           // 如果是文件列表响应（0x31）
           if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
             // 新协议：一次性返回所有文件名，用"/"分隔
             // 格式: 7E [整体长度] 02 02 31 [文件名数据]
-            // 文件名不包含后缀，每个文件名前面包含一个分隔符“/”
+            // 文件名不包含后缀，每个文件名前面包含一个分隔符"/"
             // 例如: 2F 31 31 31 31 2F 30 30 30 30 表示 "/1111/0000"
-            
+              
             // 从第5个字节开始是文件名数据（跳过帧头、长度、方向、固定值、响应码）
             const fileNameDataBytes = data.resValue.slice(5);
-            
+              
             // 将字节数组转换为字符串
             const fileNameStr = decodeUtf8Bytes(new Uint8Array(fileNameDataBytes));
-            
+              
             console.log('文件名原始字符串:', fileNameStr);
-            
+              
             // 按"/"分割文件名
             const fileNames = fileNameStr.split('/').filter(name => name.length > 0);
-            
+              
             console.log('解析到的文件名:', fileNames);
-            
+              
             // 构造文件列表
             const fileList: FileItem[] = fileNames.map((name, index) => ({
               id: `file_${String(index + 1).padStart(2, '0')}`,
-              name: name, // 不添加.mp3后缀，直接使用原始文件名
-              path: '', // 硬件文件不需要本地路径
-              duration: '--:--' // 默认时长
+              name: name, // 原始文件名，用于数据传输
+              displayName: `文件${index + 1}`, // 展示用名称
+              path: '' // 硬件文件不需要本地路径
             }));
-            
+              
             console.log('构造的文件列表:', fileList);
             setFiles(fileList);
             setLoading(false);
-            
+              
             if (fileList.length === 0) {
               Taro.showToast({
                 title: '暂无文件',
                 icon: 'none'
               });
             }
+          } else {
+            console.warn('收到未知的响应命令码:', responseCmd.toString(16));
+            setLoading(false);
           }
+        } else {
+          console.warn('收到无效的响应数据');
+          setLoading(false);
+          Taro.showToast({
+            title: '获取文件列表失败',
+            icon: 'none'
+          });
         }
       });
-      
+        
     } catch (error) {
       console.error('获取文件列表失败:', error);
       setLoading(false);
@@ -270,8 +280,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                 onClick={() => onSelect(file.id)}
               >
                 <View className="file-info">
-                  <Text className="file-name">{file.name}</Text>
-                  <Text className="file-duration">{file.duration}</Text>
+                  <Text className="file-name">{file.displayName}</Text>
                 </View>
                 
                 <View className="file-actions">

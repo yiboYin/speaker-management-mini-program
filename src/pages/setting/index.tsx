@@ -22,7 +22,8 @@ const SettingPage: React.FC = () => {
   
   interface FileItem {
     id: string;
-    name: string;
+    name: string; // 原始文件名，用于数据传输
+    displayName: string; // 展示用的文件名（文件1、文件2...）
   }
   
   const [fileList, setFileList] = useState<FileItem[]>([]);
@@ -518,7 +519,8 @@ const SettingPage: React.FC = () => {
           // 构造文件列表
           const newFileList = fileNames.map((name, index) => ({
             id: `audio_${index + 1}`,
-            name: name // 不添加.mp3后缀，直接使用原始文件名
+            name: name, // 原始文件名，用于数据传输
+            displayName: `文件${index + 1}` // 展示用名称
           }));
 
           console.log('构造的文件列表:', newFileList);
@@ -593,7 +595,7 @@ const SettingPage: React.FC = () => {
                 key={file.id}
                 onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
               >
-                <View className="file-name">{file.name}</View>
+                <View className="file-name">{file.displayName}</View>
                 <Button 
                   className="play-btn"
                   onClick={(e) => handlePlayFile(e, index + 1)}
