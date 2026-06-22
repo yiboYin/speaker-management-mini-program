@@ -7,15 +7,16 @@ import './index.scss';
 
 const SettingPage: React.FC = () => {
   const buttons = [
-    { text: '恢复出厂设置', action: 'factoryReset' },
-    { text: '开关机', action: 'powerToggle' },
-    { text: '到点循环', action: 'timeLoop' },
+    { text: '循环模式', action: 'timeLoop' },
+    { text: '定时模式', action: 'schedule' },
+    { text: '感应模式', action: 'sensorMode' },
     { text: '上一首', action: 'previous' },
     { text: '播放/停止', action: 'playPause' },
     { text: '下一首', action: 'next' },
+    { text: '开关机', action: 'powerToggle' },
     { text: '音量加', action: 'volumeUp' },
     { text: '音量减', action: 'volumeDown' },
-    { text: '定时', action: 'schedule' }
+    { text: '恢复出厂设置', action: 'factoryReset' },
   ];
   
   const [ledText, setLedText] = useState('');
@@ -137,18 +138,73 @@ const SettingPage: React.FC = () => {
             }
             
             sendCommandToDevice(command, (data) => {
-              console.log('到点循环操作返回数据:', data);
+              console.log('循环模式操作返回数据:', data);
               return false;
             }).then(() => {
               Taro.showToast({
-                title: '到点循环指令发送成功',
+                title: '循环模式指令发送成功',
                 icon: 'success',
                 duration: 2000
               });
             }).catch((error) => {
-              console.error('发送到点循环指令失败:', error);
+              console.error('发送循环模式指令失败:', error);
               Taro.showToast({
-                title: '发送到点循环指令失败',
+                title: '发送循环模式指令失败',
+                icon: 'none',
+                duration: 2000
+              });
+            });
+          } else {
+            console.error('设备状态数据格式不正确');
+            Taro.showToast({
+              title: '设备状态数据格式不正确',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+          return false; // 返回，避免后续执行
+        }).catch((error) => {
+          console.error('获取设备状态失败:', error);
+          Taro.showToast({
+            title: '获取设备状态失败',
+            icon: 'none',
+            duration: 2000
+          });
+        });
+        return false; // 返回，避免执行后续的通用发送逻辑
+      case 'sensorMode':
+        // 先获取设备状态，然后切换感应模式状态
+        sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {
+          console.log('设备状态返回数据:', data);
+          
+          // 解析设备状态返回数据
+          // 返回格式: 7E [整体长度] 02 02 11 [状态字节]
+          if (data.resValue && data.resValue.length >= 7) {
+            // 状态字节格式：[开关机][定时][上电播放][到点循环][感应模式]
+            const sensorModeStatus = data.resValue[6]; // 感应模式状态在第7个字节
+            
+            // 根据当前感应模式状态切换
+            if (sensorModeStatus === 0x00) {
+              // 当前为关闭状态，发送开启指令
+              command = CONTROL_COMMANDS.SENSOR_MODE_ENABLE;
+            } else {
+              // 当前为开启状态，发送关闭指令
+              command = CONTROL_COMMANDS.SENSOR_MODE_DISABLE;
+            }
+            
+            sendCommandToDevice(command, (data) => {
+              console.log('感应模式操作返回数据:', data);
+              return false;
+            }).then(() => {
+              Taro.showToast({
+                title: '感应模式指令发送成功',
+                icon: 'success',
+                duration: 2000
+              });
+            }).catch((error) => {
+              console.error('发送感应模式指令失败:', error);
+              Taro.showToast({
+                title: '发送感应模式指令失败',
                 icon: 'none',
                 duration: 2000
               });
@@ -192,18 +248,18 @@ const SettingPage: React.FC = () => {
             }
             
             sendCommandToDevice(command, (data) => {
-              console.log('定时操作返回数据:', data);
+              console.log('定时模式操作返回数据:', data);
               return false;
             }).then(() => {
               Taro.showToast({
-                title: '定时指令发送成功',
+                title: '定时模式指令发送成功',
                 icon: 'success',
                 duration: 2000
               });
             }).catch((error) => {
-              console.error('发送定时指令失败:', error);
+              console.error('发送定时模式指令失败:', error);
               Taro.showToast({
-                title: '发送定时指令失败',
+                title: '发送定时模式指令失败',
                 icon: 'none',
                 duration: 2000
               });
