@@ -704,10 +704,11 @@ const TaskPage: React.FC = () => {
       <View className="content">
         {activeTab === 'schedule' ? (
           <View className="schedule-list">
-            {tasks.map(task => (
+            {tasks.map((task, index) => (
               <TaskItem 
                 key={task.id} 
-                task={task} 
+                task={task}
+                index={index}
                 onEdit={(taskId) => {
                   // 获取完整的任务数据并序列化
                   const taskData = tasks.find(t => t.id === taskId);
