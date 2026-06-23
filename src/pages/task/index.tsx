@@ -227,6 +227,7 @@ const TaskPage: React.FC = () => {
                 id,
                 taskName: `定时任务 ${taskIdCounter - 1}`,
                 fileName,
+                displayName: fileNameWithoutExt, // 使用去掉后缀的文件名作为展示名
                 filePath: '', // 硬件文件不需要本地路径
                 selectedDays,
                 volume,
@@ -349,6 +350,7 @@ const TaskPage: React.FC = () => {
                 id,
                 taskName: `循环任务 ${taskIdCounter - 1}`,
                 fileName,
+                displayName: fileNameWithoutExt, // 使用去掉后缀的文件名作为展示名
                 filePath: '', // 硬件文件不需要本地路径
                 volume,
                 relayEnabled,

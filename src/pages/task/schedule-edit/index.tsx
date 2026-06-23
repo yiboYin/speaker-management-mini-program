@@ -6,7 +6,8 @@ import './index.scss';
 
 interface Task {
   id: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   selectedDays: string[];
   volume: number;
@@ -25,7 +26,8 @@ const ScheduleEditPage: React.FC = () => {
   const [selectedFileId, setSelectedFileId] = useState<string>(''); // 当前选中的文件ID
   
   const [scheduleData, setScheduleData] = useState<{
-    fileName: string;
+    fileName: string; // 原始文件名，用于数据传输
+    displayName: string; // 展示用的文件名
     filePath: string;
     selectedDays: string[];
     volume: number;
@@ -34,6 +36,7 @@ const ScheduleEditPage: React.FC = () => {
     endTime: string;
   }>({ 
     fileName: '',
+    displayName: '',
     filePath: '',
     selectedDays: [],
     volume: 3, // 默认音量为3（0-5范围）
@@ -54,6 +57,7 @@ const ScheduleEditPage: React.FC = () => {
         // 更新页面状态
         setScheduleData({
           fileName: taskData.fileName,
+          displayName: taskData.displayName || taskData.fileName.replace(/\.mp3$/i, ''), // 如果没有displayName，从fileName提取
           filePath: taskData.filePath,
           selectedDays: taskData.selectedDays,
           volume: taskData.volume,
@@ -114,7 +118,8 @@ const ScheduleEditPage: React.FC = () => {
     if (selectedFile) {
       setScheduleData({
         ...scheduleData,
-        fileName: selectedFile.name,
+        fileName: selectedFile.name, // 原始文件名，用于数据传输
+        displayName: selectedFile.displayName, // 展示用文件名
         filePath: selectedFile.path || '' // 硬件文件可能没有本地路径
       });
       closeFileModal();
@@ -134,7 +139,7 @@ const ScheduleEditPage: React.FC = () => {
         <View className="form-item">
           <Text className="label">音频</Text>
           <View className="file-picker" onClick={openFileModal}>
-            {scheduleData.fileName || '请选择文件'}
+            {scheduleData.displayName || '请选择文件'}
             <Text className="arrow-icon">›</Text>
           </View>
         </View>
@@ -218,6 +223,16 @@ const ScheduleEditPage: React.FC = () => {
           className="confirm-button" 
           onClick={() => {
             console.log('确定按钮点击', Taro.eventCenter);
+            
+            // 校验：必须选择音频文件
+            if (!scheduleData.fileName || scheduleData.fileName.trim() === '') {
+              Taro.showToast({
+                title: '请选择音频文件',
+                icon: 'none',
+                duration: 2000
+              });
+              return;
+            }
             
             // 校验：至少选择一天
             if (scheduleData.selectedDays.length === 0) {

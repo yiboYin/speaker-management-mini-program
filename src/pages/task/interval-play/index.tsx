@@ -7,7 +7,8 @@ import './index.scss';
 interface IntervalTask {
   id: string;
   taskName: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   volume: number;
   relayEnabled: boolean;
@@ -24,13 +25,15 @@ const IntervalPlayPage: React.FC = () => {
   const [selectedFileId, setSelectedFileId] = useState<string>(''); // 当前选中的文件ID
   
   const [playData, setPlayData] = useState<{
-    fileName: string;
+    fileName: string; // 原始文件名，用于数据传输
+    displayName: string; // 展示用的文件名
     filePath: string;
     volume: number;
     relayEnabled: boolean;
     interval: number;
   }>({ 
     fileName: '',
+    displayName: '',
     filePath: '',
     volume: 3, // 默认音量为3（0-5范围）
     relayEnabled: false,
@@ -49,6 +52,7 @@ const IntervalPlayPage: React.FC = () => {
         // 更新页面状态
         setPlayData({
           fileName: taskData.fileName,
+          displayName: taskData.displayName || taskData.fileName.replace(/\.mp3$/i, ''), // 如果没有displayName，从fileName提取
           filePath: taskData.filePath,
           volume: taskData.volume,
           relayEnabled: taskData.relayEnabled,
@@ -93,7 +97,8 @@ const IntervalPlayPage: React.FC = () => {
     if (selectedFile) {
       setPlayData({
         ...playData,
-        fileName: selectedFile.name,
+        fileName: selectedFile.name, // 原始文件名，用于数据传输
+        displayName: selectedFile.displayName, // 展示用文件名
         filePath: selectedFile.path || '' // 硬件文件可能没有本地路径
       });
       closeFileModal();
@@ -115,7 +120,7 @@ const IntervalPlayPage: React.FC = () => {
         <View className="form-item">
           <Text className="label">音频</Text>
           <View className="file-picker" onClick={openFileModal}>
-            {playData.fileName || '请选择文件'}
+            {playData.displayName || '请选择文件'}
             <Text className="arrow-icon">›</Text>
           </View>
         </View>
@@ -165,6 +170,16 @@ const IntervalPlayPage: React.FC = () => {
         <Button 
           className="confirm-button" 
           onClick={() => {
+            // 校验：必须选择音频文件
+            if (!playData.fileName || playData.fileName.trim() === '') {
+              Taro.showToast({
+                title: '请选择音频文件',
+                icon: 'none',
+                duration: 2000
+              });
+              return;
+            }
+            
             // 根据是编辑模式还是新增模式执行不同操作
             if (isEditing) {
               // 编辑模式：更新现有任务

@@ -5,7 +5,8 @@ import './TaskItem.scss';
 interface Task {
   id: string;
   taskName: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   selectedDays: string[];
   volume: number;

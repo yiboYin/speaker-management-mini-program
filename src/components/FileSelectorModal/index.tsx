@@ -71,7 +71,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
             const fileList: FileItem[] = fileNames.map((name, index) => ({
               id: `file_${String(index + 1).padStart(2, '0')}`,
               name: name, // 原始文件名，用于数据传输
-              displayName: `文件${index + 1}`, // 展示用名称
+              displayName: `音频文件${index + 1}`, // 展示用名称
               path: '' // 硬件文件不需要本地路径
             }));
               
