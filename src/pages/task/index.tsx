@@ -149,14 +149,7 @@ const TaskPage: React.FC = () => {
             let taskIdCounter = 1;
             
             for (const taskStr of taskStrings) {
-              // 任务信息格式：[文件名][音量][继电器][开始时间][结束时间][星期几][启用状态]
-              // 文件名: 4字节
-              // 音量: 1字节
-              // 继电器: 1字节
-              // 开始时间: 2字节（小时+分钟）
-              // 结束时间: 2字节（小时+分钟）
-              // 星期几: 1字节（位掩码）
-              // 启用状态: 1字节
+              // 任务信息格式：[任务ID长度(1字节)][任务ID(N字节)][文件ID长度(1字节=4)][文件ID(4字节)][音量(1字节)][继电器(1字节)][开始时间(2字节:小时+分钟)][结束时间(2字节:小时+分钟)][星期掩码(1字节)][启用状态(1字节)]
               
               // 将任务字符串转换为字节数组
               const taskBytes: number[] = [];
@@ -164,12 +157,23 @@ const TaskPage: React.FC = () => {
                 taskBytes.push(taskStr.charCodeAt(i));
               }
               
-              if (taskBytes.length < 12) {
+              if (taskBytes.length < 15) {
                 console.warn('任务数据长度不足，跳过:', taskBytes.length);
                 continue;
               }
               
               let currentIndex = 0;
+              
+              // 跳过任务ID长度（1字节）
+              const taskIdLength = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 跳过任务ID（N字节）
+              currentIndex += taskIdLength;
+              
+              // 跳过文件ID长度（1字节，固定为4）
+              const fileIdLength = taskBytes[currentIndex];
+              currentIndex++;
               
               // 文件名（4字节）
               const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
@@ -197,12 +201,8 @@ const TaskPage: React.FC = () => {
               const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
               currentIndex += 2;
               
-              // 星期几（1字节，位掩码）
+              // 星期几（1字节，位掩码，符合ISO 8601：bit0=周一到bit6=周日）
               const daysMask = taskBytes[currentIndex];
-              currentIndex++;
-              
-              // 启用状态（1字节）
-              const isEnabled = taskBytes[currentIndex] === 0x01;
               currentIndex++;
               
               // 根据位掩码解析星期几（bit0=周一，bit6=周日）
@@ -214,6 +214,10 @@ const TaskPage: React.FC = () => {
               if (daysMask & 0x10) selectedDays.push('五'); // bit4: 周五
               if (daysMask & 0x20) selectedDays.push('六'); // bit5: 周六
               if (daysMask & 0x40) selectedDays.push('日'); // bit6: 周日
+              
+              // 启用状态（1字节，0x01=启用，0x00=禁用）
+              const isEnabled = taskBytes[currentIndex] === 0x01;
+              currentIndex++;
               
               // 生成任务ID
               const id = `task_${String(taskIdCounter).padStart(2, '0')}`;
@@ -289,12 +293,7 @@ const TaskPage: React.FC = () => {
             let taskIdCounter = 1;
             
             for (const taskStr of taskStrings) {
-              // 任务信息格式：[文件名][音量][继电器][间隔时间][启用状态]
-              // 文件名: 4字节
-              // 音量: 1字节
-              // 继电器: 1字节
-              // 间隔时间: 1字节
-              // 启用状态: 1字节
+              // 任务信息格式：[任务ID长度(1字节)][任务ID(N字节)][文件ID长度(1字节=4)][文件ID(4字节)][音量(1字节)][继电器(1字节)][间隔时间(1字节)][启用状态(1字节)]
               
               // 将任务字符串转换为字节数组
               const taskBytes: number[] = [];
@@ -302,12 +301,23 @@ const TaskPage: React.FC = () => {
                 taskBytes.push(taskStr.charCodeAt(i));
               }
               
-              if (taskBytes.length < 8) {
+              if (taskBytes.length < 11) {
                 console.warn('任务数据长度不足，跳过:', taskBytes.length);
                 continue;
               }
               
               let currentIndex = 0;
+              
+              // 跳过任务ID长度（1字节）
+              const taskIdLength = taskBytes[currentIndex];
+              currentIndex++;
+              
+              // 跳过任务ID（N字节）
+              currentIndex += taskIdLength;
+              
+              // 跳过文件ID长度（1字节，固定为4）
+              const fileIdLength = taskBytes[currentIndex];
+              currentIndex++;
               
               // 文件名（4字节）
               const fileNameBytes = taskBytes.slice(currentIndex, currentIndex + 4);
@@ -323,11 +333,11 @@ const TaskPage: React.FC = () => {
               const relayEnabled = taskBytes[currentIndex] === 0x01;
               currentIndex++;
               
-              // 间隔时间（1字节）
+              // 间隔时间（1字节，单位：秒）
               const interval = taskBytes[currentIndex];
               currentIndex++;
               
-              // 启用状态（1字节）
+              // 启用状态（1字节，0x01=启用，0x00=禁用）
               const isEnabled = taskBytes[currentIndex] === 0x01;
               currentIndex++;
               
