@@ -1,10 +1,9 @@
 .task-page {
   padding: 20px;
-  padding-bottom: 80px; // 为底部按钮留出空间
-  background-color: #f0f7ff; // 参考连接页面的背景色
-  min-height: 100vh; // 撑满整个视口
-  margin-top: 50px; // 与tab栏高度一致
-  overflow: hidden; // 隐藏溢出内容
+  padding-bottom: 80px;
+  background: linear-gradient(180deg, #a8c0ff 0%, #f0f7ff 30%, #ffffff 100%);
+  min-height: 100vh;
+  overflow: hidden;
   
   .content {
     margin-top: 20px;
@@ -15,10 +14,10 @@
   .schedule-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    background-color: #f0f7ff; // 添加背景色，与页面背景一致
-    padding: 10px; // 添加内边距，避免内容贴边
-    border-radius: 8px; // 添加圆角，与任务卡片一致
+    gap: 16px;
+    background-color: transparent;
+    padding: 10px 0;
+    border-radius: 0;
   }
   
   .bottom-button-container {
@@ -27,26 +26,29 @@
     left: 0;
     right: 0;
     display: flex;
-    justify-content: space-around;
-    padding: 10px 20px;
-    background-color: #f0f7ff; // 与整体背景色一致
-    box-shadow: none; // 去除阴影
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 20%, #ffffff 100%);
     z-index: 100;
     
     .bottom-button {
-      width: 45%;
-      padding: 10px;
-      font-size: 30px; // 调整字体大小
-      border-radius: 25px; // 参照连接页面搜索设备按钮的倒角
+      flex: 0 0 auto;
+      min-width: 140px;
+      padding: 10px 32px;
+      font-size: 28px;
+      font-weight: 500;
+      border-radius: 24px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       
       &.send-to-device {
-        background-color: #4a90e2; // 参照连接页面搜索设备按钮的蓝色渐变主色调
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); // 添加蓝色渐变
       }
       
       &.preview {
-        background-color: #f44336; // 红色背景
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         color: white;
       }
       
@@ -55,10 +57,10 @@
       }
       
       &[disabled] {
-        opacity: 0.6;
+        opacity: 0.5;
         cursor: not-allowed;
-        background-color: #cccccc; // 设置为灰色背景
-        color: #666666; // 设置为深灰色文字
+        background: linear-gradient(135deg, #cccccc 0%, #999999 100%);
+        color: #666666;
       }
     }
   }

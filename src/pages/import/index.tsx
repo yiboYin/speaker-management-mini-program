@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button, ScrollView } from '@tarojs/components'
 import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
-import { sendCommandToDevice, getConnectedDevice, hexStringToArrayBuffer } from '@/utils/deviceUtils';
-import { getDeviceId, getFilterServiceUUID, getWriteUUID } from '@/utils/bluetoothConfig';
+import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
+import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
+import { getFilterServiceUUID, getWriteUUID, getNotifyUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
 const ImportPage: React.FC = () => {
@@ -12,6 +13,9 @@ const ImportPage: React.FC = () => {
 
   // 选中文件的状态
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  
+  // 导入状态（控制按钮禁用）
+  const [isImporting, setIsImporting] = useState<boolean>(false);
 
   // 真实文件列表数据
   const [fileList, setFileList] = useState<any[]>([]);
@@ -19,6 +23,39 @@ const ImportPage: React.FC = () => {
   // 组件挂载时加载文件列表
   useEffect(() => {
     loadFileList();
+    
+    // 监听来自合成页面的事件 - 使用全局事件总线
+    Taro.eventCenter.on('synthesisComplete', (data: any) => {
+      console.log('收到合成的音频:', data);
+      
+      // 将合成的音频添加到文件列表
+      const newFile = {
+        id: 'synth_' + Date.now(),
+        name: data.fileName,
+        size: '--', // 合成文件的大小暂时不显示
+        sizeInBytes: 0,
+        date: new Date().toISOString().split('T')[0],
+        duration: data.duration || '--:--',
+        path: data.filePath,
+        isSynthesized: true, // 标记为合成文件
+        text: data.text // 保存合成文本
+      };
+      
+      setFileList(prevList => [newFile, ...prevList]);
+      
+      // 自动选中新添加的文件
+      setSelectedFileId(newFile.id);
+      
+      Taro.showToast({
+        title: '已添加合成音频',
+        icon: 'success'
+      });
+    });
+    
+    // 组件卸载时清理事件监听
+    return () => {
+      Taro.eventCenter.off('synthesisComplete');
+    };
   }, []);
   
   const loadFileList = () => {
@@ -33,12 +70,18 @@ const ImportPage: React.FC = () => {
   };
   
   const selectFiles = () => {
-    // 使用Taro.chooseMessageFile选择文件，限制为MP3格式
+    // 使用Taro.chooseMessageFile选择文件
     if ((Taro as any).chooseMessageFile) {
       (Taro as any).chooseMessageFile({
         count: 1, // 只允许选择一个文件
         type: 'file', // 指定类型为文件
-        extension: ['.mp3'], // 限制扩展名为MP3
+        extension: [
+          '.mp3', 'mp3', 
+          '.wav', 'wav', 
+          '.aac', 'aac', 
+          '.m4a', 'm4a', 
+          '.flac', 'flac'
+        ], // 限制扩展名为MP3
         success: (res) => {
           console.log('选择文件成功:', res.tempFiles);
           const mp3Files = res.tempFiles.filter(file => {
@@ -47,15 +90,37 @@ const ImportPage: React.FC = () => {
           });
           
           if (mp3Files.length > 0) {
-            const newFiles = mp3Files.map((file, index) => {
+            // 检查文件大小，限制为1MB以内
+            const validFiles = mp3Files.filter(file => {
+              const maxSize = 1 * 1024 * 1024; // 1MB = 1048576字节
+              if (file.size > maxSize) {
+                Taro.showToast({
+                  title: `文件 ${file.name} 超过1MB限制`,
+                  icon: 'none',
+                  duration: 2000
+                });
+                return false;
+              }
+              return true;
+            });
+            
+            if (validFiles.length === 0) {
+              return;
+            }
+            
+            const newFiles = validFiles.map((file, index) => {
               const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1) + 'MB';
               const now = new Date();
-              const dateStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+              const year = now.getFullYear();
+              const month = (now.getMonth() + 1).toString().padStart(2, '0');
+              const day = now.getDate().toString().padStart(2, '0');
+              const dateStr = year + '-' + month + '-' + day;
               
               return {
-                id: `new_${Date.now()}_${index}`,
+                id: 'new_' + Date.now() + '_' + index,
                 name: file.name,
                 size: fileSizeMB,
+                sizeInBytes: file.size, // 保存原始字节数
                 date: dateStr,
                 duration: '--:--', // 从文件选择器获取的文件通常不包含时长信息
                 path: file.path || file.filePath || file.tempFilePath // 记录文件路径
@@ -66,7 +131,7 @@ const ImportPage: React.FC = () => {
             setFileList(prevList => [...prevList, ...newFiles]);
             
             Taro.showToast({
-              title: `成功添加 ${mp3Files.length} 个MP3文件`,
+              title: '成功添加 ' + mp3Files.length + ' 个MP3文件',
               icon: 'success',
               duration: 2000
             });
@@ -134,7 +199,7 @@ const ImportPage: React.FC = () => {
       audioInstance.onPlay(() => {
         console.log('音频开始播放');
         Taro.showToast({
-          title: `正在试听 ${selectedFile.name}`,
+          title: '正在试听 ' + selectedFile.name,
           icon: 'none',
           duration: 2000
         });
@@ -172,7 +237,7 @@ const ImportPage: React.FC = () => {
       
       // 显示播放提示
       Taro.showToast({
-        title: `正在播放 ${selectedFile.name}`,
+        title: '正在播放 ' + selectedFile.name,
         icon: 'none',
         duration: 2000
       });
@@ -224,91 +289,262 @@ const ImportPage: React.FC = () => {
       return;
     }
     
+    // 设置导入状态为true，禁用所有按钮
+    setIsImporting(true);
+    
     // 显示正在发送的提示
     Taro.showLoading({
-      title: `正在发送 ${selectedFile.name} 到设备...`
+      title: '正在发送 ' + selectedFile.name + ' 到设备...'
     });
       
-      // 这里需要根据实际的蓝牙传输协议来实现文件发送
-      // 一般步骤是:
-      // 1. 将文件内容转换为适合蓝牙传输的数据包
-      // 2. 分包发送（如果文件较大）
-      // 3. 发送完成通知
+    // 尝试读取文件的二进制内容
+    let fileContentArrayBuffer: ArrayBuffer | null = null;
+    
+    try {
+      // 尝试使用Taro的文件系统管理器读取文件
+      const getFileSystemManager = Taro.getFileSystemManager;
+      const fs = getFileSystemManager ? getFileSystemManager() : null;
       
-      // 由于直接传输文件内容可能涉及复杂的数据处理，
-      // 我们可以先发送一个代表该文件的指令
-      // 假设发送文件的指令格式为: '7E 02 10 [文件名长度] [文件名的ASCII码] EF'
+      if (fs && selectedFile.path) {
+        // 读取文件内容（二进制）
+        const filePath = selectedFile.path;
+        const fileData = fs.readFileSync(filePath);
+        // 确保返回的是 ArrayBuffer 类型
+        fileContentArrayBuffer = fileData instanceof ArrayBuffer ? fileData : new ArrayBuffer(0);
+      }
+    } catch (readError) {
+      console.warn('读取文件内容失败:', readError);
       
-      // 为简单起见，这里先发送一个示例指令，实际应用中需要根据具体协议实现
+      // 如果无法读取文件内容，使用文件名作为标识
+      fileContentArrayBuffer = stringToUtf8Bytes(selectedFile.name).buffer;
+    }
+    
+    try {
+      // 第一步：发送开始传输及文件信息指令
+      Taro.showToast({
+        title: '开始传输...',
+        icon: 'none',
+        duration: 1500
+      });
       
-      // 尝试读取文件的二进制内容
-      let fileContentHex = '';
-      try {
-        // 在小程序环境中，尝试使用Taro的文件系统API读取文件
-        // 注意：由于安全限制，可能无法直接读取临时文件
-        if (selectedFile.path) {
-          // 尝试使用Taro的文件系统管理器
-          const fs = Taro.getFileSystemManager();
+      // 格式: 7E 02 33 [ID长度] [ID] [大小] EF
+      
+      // 使用文件名的哈希值或部分作为文件ID
+      console.log('selectedFile.name:', selectedFile.name);
+      const fileId = generateFileId(selectedFile.name);
+      const idBytes = stringToUtf8Bytes(fileId);
+      const idLength = idBytes.length;
+      
+      // 使用文件的原始字节数
+      const fileSizeInBytes = selectedFile.sizeInBytes || 0;
+      console.log('文件大小（字节）:', fileSizeInBytes);
+      const fileSizeInKB = Math.ceil(fileSizeInBytes / 1024);
+      const sizeBytes = [
+        (fileSizeInKB >> 24) & 0xFF,
+        (fileSizeInKB >> 16) & 0xFF,
+        (fileSizeInKB >> 8) & 0xFF,
+        fileSizeInKB & 0xFF
+      ];
+      
+      // 计算整体长度：命令码(02 33) + 方向(01) + 数据部分长度
+      const dataLength = 1 + idBytes.length + sizeBytes.length; // ID长度字节 + ID内容 + 大小字节
+      const totalLength = 2 + 1 + dataLength; // 命令码长度(2) + 方向字节(1) + 数据长度
+      
+      const fileInfoCommand = FILE_COMMANDS.START_FILE_TRANSFER(
+        totalLength.toString(16).padStart(2, '0'),
+        idLength.toString(16).padStart(2, '0'),
+        Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')).join(' '),
+        sizeBytes.map(b => b.toString(16).padStart(2, '0'))
+      );
+      
+      console.log('发送开始传输及文件信息:', fileInfoCommand);
+      Taro.showToast({
+        title: `发送开始传输及文件信息`,
+        icon: 'none',
+        duration: 1000
+      });
+      
+      // 等待设备应答确认
+      const startTransferAck = await new Promise<boolean>((resolve, reject) => {
+        let timeoutId: any;
+        
+        sendCommandToDevice(fileInfoCommand, (data) => {
+          console.log('开始传输及文件信息响应:', data);
           
-          // 读取文件内容（二进制）
-          const filePath = selectedFile.path;
-          const buffer = fs.readFileSync(filePath, 'binary');
+          // 清除超时定时器
+          if (timeoutId) clearTimeout(timeoutId);
           
-          // 将二进制数据转换为十六进制字符串
-          fileContentHex = bufferToHex(buffer);
-        }
-      } catch (readError) {
-        console.warn('读取文件内容失败:', readError);
-        // 如果读取失败，回退到使用文件路径
-        fileContentHex = convertStringToHex(selectedFile.path || selectedFile.name);
+          // 检查应答是否成功
+          if (data && data.resValue && data.resValue.length >= 5) {
+            const responseCmd = data.resValue[4]; // 响应命令码（第5个字节）
+            const result = data.resValue[data.resValue.length - 1];
+            
+            if (result === RESULT_CODES.SUCCESS) {
+              console.log('设备确认可以开始传输');
+              resolve(true);
+            } else {
+              console.error('设备拒绝传输');
+              resolve(false);
+            }
+          } else {
+            console.warn('收到无效应答');
+            resolve(false);
+          }
+          
+          return false; // 取消监听
+        });
+        
+        // 设置超时保护（5秒）
+        timeoutId = setTimeout(() => {
+          console.error('等待设备应答超时');
+          reject(new Error('等待设备应答超时'));
+        }, 5000);
+      });
+      
+      if (!startTransferAck) {
+        throw new Error('设备未确认开始传输');
       }
       
-      // 分三步发送指令：
-      // 1. 发送开始指令: 7E 02 33 EF
-      // 2. 发送文件内容
-      // 3. 发送结束指令: 7E 02 34 EF
+      console.log('收到设备确认，开始发送文件内容');
       
-      try {
-        // 第一步：发送开始指令
-        console.log('发送开始指令: 7E 02 33 EF');
-        await sendCommandToDevice('7E 02 33 EF', (data) => {
-          console.log('开始指令响应:', data);
-        });
+      // 第三步：发送文件内容（分包发送）
+      if (fileContentArrayBuffer && fileContentArrayBuffer.byteLength > 0) {
+        console.log(`发送文件内容，总大小: ${fileContentArrayBuffer.byteLength} 字节`);
         
-        // 第二步：发送文件内容
-        console.log(`发送文件内容，长度: ${fileContentHex.split(' ').length} 字节`);
-        await sendCommandToDevice(fileContentHex, (data) => {
-          console.log('文件内容响应:', data);
-        });
+        // 获取蓝牙连接参数
+        const connectedDevice = getConnectedDevice();
+        if (!connectedDevice) {
+          throw new Error('未找到已连接的设备');
+        }
         
-        // 第三步：发送结束指令
-        console.log('发送结束指令: 7E 02 34 EF');
-        await sendCommandToDevice('7E 02 34 EF', (data) => {
-          console.log('结束指令响应:', data);
+        const deviceId = connectedDevice.deviceId;
+        const serviceUUID = getFilterServiceUUID();
+        const writeUUID = getWriteUUID();
+        const notifyUUID = getNotifyUUID(); // 新增：获取通知特征UUID
+        
+        if (!serviceUUID || !writeUUID || !notifyUUID) {
+          throw new Error('未找到蓝牙服务或特征UUID');
+        }
+        Taro.showToast({
+          title: `开始分包发送`,
+          icon: 'none',
+          duration: 1000
+        });
+        // 使用writeCommandToDeviceWithSplit方法分包发送（带应答确认）
+        await writeCommandToDeviceWithSplit(
+          fileContentArrayBuffer,
+          deviceId,
+          serviceUUID,
+          writeUUID,
+          notifyUUID,   // 新增：通知特征UUID，用于接收设备应答
+          3000,         // 超时时间：每个包等待应答最多3秒
+          20,           // 包间延迟：收到应答后延迟20ms再发送下一个包
+          (progress) => {
+            // 进度回调：显示当前传输进度
+            Taro.showToast({
+              title: `传输中 ${progress}%`,
+              icon: 'none',
+              duration: 1000
+            });
+          }
+        );
+        Taro.showToast({
+          title: `文件内容分包发送完成`,
+          icon: 'none',
+          duration: 1000
+        });
+        console.log('文件内容分包发送完成');
+      }
+      
+      // 第四步：发送结束指令
+      console.log('发送结束指令:', FILE_COMMANDS.END_FILE_TRANSFER);
+      await sendCommandToDevice(FILE_COMMANDS.END_FILE_TRANSFER, (data) => {
+        console.log('结束指令响应:', data);
+        
+        // 检查设备是否成功接收文件
+        if (data && data.resValue && data.resValue.length >= 5) {
+          const responseCmd = data.resValue[4]; // 应答命令码（第5个字节）
+          const result = data.resValue[data.resValue.length - 1]; // 结果 01=成功, 00=失败
           
-          // 检查设备是否成功接收文件
-          if (data && data.hex && data.hex.includes('ACK')) {
+          if (responseCmd === RESPONSE_CODES.FILE_TRANSFER_CONFIRM && result === RESULT_CODES.SUCCESS) {
             Taro.hideLoading();
+            setIsImporting(false); // 恢复按钮状态
             Taro.showToast({
               title: '文件发送成功',
               icon: 'success',
               duration: 2000
             });
+          } else {
+            Taro.hideLoading();
+            setIsImporting(false); // 恢复按钮状态
+            Taro.showToast({
+              title: '文件发送失败1',
+              icon: 'none',
+              duration: 2000
+            });
           }
-        });
-      } catch (error) {
-        console.error('发送文件过程出错:', error);
-        Taro.hideLoading();
-        Taro.showToast({
-          title: '文件发送失败',
-          icon: 'none',
-          duration: 2000
-        });
-        throw error;
-      }
-      
-      console.log(`文件 ${selectedFile.name} 发送指令已发出`);
+        } else {
+          Taro.hideLoading();
+          setIsImporting(false); // 恢复按钮状态
+          Taro.showToast({
+            title: '文件发送失败2',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+        return false;
+      });
+    } catch (error) {
+      console.error('发送文件过程出错:', error);
+      Taro.hideLoading();
+      setIsImporting(false); // 恢复按钮状态
+      Taro.showToast({
+        title: `文件发送失败: ${error.message}`,
+        icon: 'none',
+        duration: 2000
+      });
+      throw error;
+    }
     
+    console.log(`文件 ${selectedFile.name} 发送完成`);
+  };
+  
+  // 辅助函数：将字符串转换为UTF-8字节数组（兼容微信小程序）
+  const stringToUtf8Bytes = (str: string): Uint8Array => {
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      
+      if (code < 0x80) {
+        // 1字节字符
+        bytes.push(code);
+      } else if (code < 0x800) {
+        // 2字节字符
+        bytes.push(0xc0 | (code >> 6));
+        bytes.push(0x80 | (code & 0x3f));
+      } else if (code < 0xd800 || code >= 0xe000) {
+        // 3字节字符
+        bytes.push(0xe0 | (code >> 12));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      } else {
+        // 4字节字符（代理对）
+        i++;
+        code = 0x10000 + (((code & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+        bytes.push(0xf0 | (code >> 18));
+        bytes.push(0x80 | ((code >> 12) & 0x3f));
+        bytes.push(0x80 | ((code >> 6) & 0x3f));
+        bytes.push(0x80 | (code & 0x3f));
+      }
+    }
+    return new Uint8Array(bytes);
+  };
+  
+  // 辅助函数：生成文件ID（4位随机数字）
+  const generateFileId = (fileName: string): string => {
+    // 生成4位随机数字（0000-9999）
+    const randomNum = Math.floor(Math.random() * 10000);
+    return randomNum.toString().padStart(4, '0');
   };
   
   // 辅助函数：将字符串转换为十六进制
@@ -337,16 +573,33 @@ const ImportPage: React.FC = () => {
       {/* 工具栏（移除绝对定位） */}
       <View className="toolbar">
         <View className="left-buttons">
-          <Button className="toolbar-btn" onClick={() => {
-            // 跳转到合成页面
-            navigateTo({
-              url: '/pages/import/synthesis/index'
-            });
-          }}>合成</Button>
-          <Button className="toolbar-btn" onClick={selectFiles}>导入</Button>
+          <Button 
+            className="toolbar-btn" 
+            disabled={isImporting}
+            onClick={() => {
+              // 跳转到合成页面
+              navigateTo({
+                url: '/pages/import/synthesis/index'
+              });
+            }}
+          >
+            合成
+          </Button>
+          <Button 
+            className="toolbar-btn" 
+            disabled={isImporting}
+            onClick={selectFiles}
+          >
+            导入
+          </Button>
         </View>
         <View className="right-buttons">
-          <Button className="clear-btn">清空</Button>
+          <Button 
+            className="clear-btn"
+            disabled={isImporting}
+          >
+            清空
+          </Button>
         </View>
       </View>
       
@@ -361,10 +614,14 @@ const ImportPage: React.FC = () => {
             className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`} 
             onClick={() => setSelectedFileId(file.id)}
           >
-            <Text className="file-name">{file.name} ({file.date})</Text>
+            <Text className="file-name">
+              {file.isSynthesized && <Text className="synth-tag">[合成]</Text>}
+              {file.name} ({file.date})
+            </Text>
             <Text className="file-duration">{file.duration}</Text>
             <Button 
               className="delete-btn" 
+              disabled={isImporting}
               onClick={(e) => {
                 e.stopPropagation(); // 阻止点击事件冒泡到父元素
                 // 删除文件逻辑
@@ -382,12 +639,14 @@ const ImportPage: React.FC = () => {
         <View className="bottom-action-container">
           <Button 
             className="action-btn send-to-device" 
+            disabled={isImporting}
             onClick={() => sendFileToDevice()}
           >
             发送到设备
           </Button>
           <Button 
             className="action-btn preview" 
+            disabled={isImporting}
             onClick={() => playSelectedFile()}
           >
             试听

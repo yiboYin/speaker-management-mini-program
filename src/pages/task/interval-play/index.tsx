@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, Slider, Switch, Picker, Input } from '@tarojs/components';
+import { View, Text, Button, Slider, Switch, Input } from '@tarojs/components';
 import Taro, { useLoad } from '@tarojs/taro';
+import FileSelectorModal from '@/components/FileSelectorModal';
 import './index.scss';
 
 interface IntervalTask {
   id: string;
   taskName: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   volume: number;
   relayEnabled: boolean;
@@ -17,27 +19,28 @@ const IntervalPlayPage: React.FC = () => {
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // 区分编辑和新增模式
   const [taskId, setTaskId] = useState<string>(''); // 存储任务ID
-  // 定义备选文件列表（与定时播放编辑页面保持一致）
-  const availableFiles = [
-    { name: '音频1.mp3', path: '/path/to/audio1.mp3' },
-    { name: '音频2.mp3', path: '/path/to/audio2.mp3' },
-    { name: '音频3.mp3', path: '/path/to/audio3.mp3' },
-    { name: '音频4.mp3', path: '/path/to/audio4.mp3' }
-  ];
+  
+  // 文件选择弹窗相关状态
+  const [showFileModal, setShowFileModal] = useState(false); // 是否显示文件选择弹窗
+  const [selectedFileId, setSelectedFileId] = useState<string>(''); // 当前选中的文件ID
   
   const [playData, setPlayData] = useState<{
-    fileName: string;
+    fileName: string; // 原始文件名，用于数据传输
+    displayName: string; // 展示用的文件名
     filePath: string;
     volume: number;
     relayEnabled: boolean;
     interval: number;
   }>({ 
-    fileName: availableFiles[0].name,
-    filePath: availableFiles[0].path,
-    volume: 15,
+    fileName: '',
+    displayName: '',
+    filePath: '',
+    volume: 3, // 默认音量为3（0-5范围）
     relayEnabled: false,
     interval: 5
   });
+  
+  // 初始化时设置默认选中文件（已移除，等待用户选择）
   
   useLoad((options) => {
     // 如果URL中有任务数据，则解析并初始化页面
@@ -49,6 +52,7 @@ const IntervalPlayPage: React.FC = () => {
         // 更新页面状态
         setPlayData({
           fileName: taskData.fileName,
+          displayName: taskData.displayName || taskData.fileName.replace(/\.mp3$/i, ''), // 如果没有displayName，从fileName提取
           filePath: taskData.filePath,
           volume: taskData.volume,
           relayEnabled: taskData.relayEnabled,
@@ -70,28 +74,55 @@ const IntervalPlayPage: React.FC = () => {
   });
 
   const { volume, relayEnabled, interval } = playData;
+  
+  // 打开文件选择弹窗
+  const openFileModal = () => {
+    setShowFileModal(true);
+    // 设置当前选中的文件为已选择的文件（通过文件名匹配）
+    // 注意：这里不再依赖 availableFiles，而是由 FileSelectorModal 内部管理
+  };
+  
+  // 关闭文件选择弹窗
+  const closeFileModal = () => {
+    setShowFileModal(false);
+  };
+  
+  // 选中文件（单选）
+  const selectFile = (fileId: string) => {
+    setSelectedFileId(fileId);
+  };
+  
+  // 确认选择文件（接收子组件传递的真实文件对象）
+  const confirmFileSelection = (selectedFile: any) => {
+    if (selectedFile) {
+      setPlayData({
+        ...playData,
+        fileName: selectedFile.name, // 原始文件名，用于数据传输
+        displayName: selectedFile.displayName, // 展示用文件名
+        filePath: selectedFile.path || '' // 硬件文件可能没有本地路径
+      });
+      closeFileModal();
+      Taro.showToast({
+        title: '已选择文件',
+        icon: 'success'
+      });
+    } else {
+      Taro.showToast({
+        title: '请先选择一个文件',
+        icon: 'none'
+      });
+    }
+  };
 
   return (
     <View className="interval-play-page">
       <View className="content">
         <View className="form-item">
           <Text className="label">音频</Text>
-          <Picker 
-            mode="selector"
-            range={availableFiles.map(file => file.name)}
-            onChange={(e) => {
-              const selectedFile = availableFiles[e.detail.value];
-              setPlayData({
-                ...playData, 
-                fileName: selectedFile.name,
-                filePath: selectedFile.path
-              });
-            }}
-          >
-            <View className="file-picker">
-              {playData.fileName || '请选择文件'}
-            </View>
-          </Picker>
+          <View className="file-picker" onClick={openFileModal}>
+            {playData.displayName || '请选择文件'}
+            <Text className="arrow-icon">›</Text>
+          </View>
         </View>
         
         <View className="form-item">
@@ -100,7 +131,7 @@ const IntervalPlayPage: React.FC = () => {
             <Slider 
               value={volume} 
               min={0} 
-              max={30} 
+              max={5} 
               onChange={(e) => setPlayData({...playData, volume: e.detail.value})}
               showValue
             />
@@ -125,10 +156,30 @@ const IntervalPlayPage: React.FC = () => {
           />
         </View>
       </View>
+      
+      {/* 文件选择弹窗 */}
+      <FileSelectorModal
+        visible={showFileModal}
+        selectedFileId={selectedFileId}
+        onSelect={selectFile}
+        onConfirm={confirmFileSelection}
+        onCancel={closeFileModal}
+      />
+      
       <View className="bottom-button-container">
         <Button 
           className="confirm-button" 
           onClick={() => {
+            // 校验：必须选择音频文件
+            if (!playData.fileName || playData.fileName.trim() === '') {
+              Taro.showToast({
+                title: '请选择音频文件',
+                icon: 'none',
+                duration: 2000
+              });
+              return;
+            }
+            
             // 根据是编辑模式还是新增模式执行不同操作
             if (isEditing) {
               // 编辑模式：更新现有任务

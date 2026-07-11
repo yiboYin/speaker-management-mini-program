@@ -5,7 +5,8 @@ import './TaskItem.scss';
 interface Task {
   id: string;
   taskName: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   selectedDays: string[];
   volume: number;
@@ -17,12 +18,13 @@ interface Task {
 
 interface TaskItemProps {
   task: Task;
+  index: number;
   onEdit: (taskId: string) => void;
   onToggleEnable: (taskId: string, isEnabled: boolean) => void;
   onDelete: (taskId: string) => void;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onEdit, onToggleEnable, onDelete }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, index, onEdit, onToggleEnable, onDelete }) => {
   const formatDays = (days: string[]) => {
     if (days.length === 0) return '无';
     return days.map(day => `周${day}`).join('、');
@@ -31,7 +33,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onEdit, onToggleEnable, onDel
   return (
     <View className="task-item">
       <View className="header">
-        <Text className="task-name">{task.taskName || '未命名任务'}</Text>
+        <Text className="task-name">{`定时任务${index + 1}`}</Text>
         <Button 
           className="edit-btn" 
           size="mini" 
@@ -71,7 +73,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onEdit, onToggleEnable, onDel
       
       <View className="detail-row">
         <Text className="label">音频</Text>
-        <Text className="value">{task.fileName || '未选择文件'}</Text>
+        <Text className="value">音频文件.mp3</Text>
       </View>
       
       <View className="detail-row">

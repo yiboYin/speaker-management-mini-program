@@ -1,0 +1,205 @@
+// 文件选择弹窗样式
+.file-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  
+  .file-modal {
+    width: 600px;
+    max-height: 80vh;
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      
+      .modal-title {
+        font-size: 32px;
+        font-weight: 600;
+      }
+      
+      .close-btn {
+        font-size: 40px;
+        cursor: pointer;
+        line-height: 1;
+        opacity: 0.9;
+        transition: opacity 0.3s;
+        
+        &:active {
+          opacity: 0.6;
+        }
+      }
+    }
+    
+    .file-list {
+      width: 600px;
+      overflow-y: auto;
+      padding: 16px;
+      
+      // 隐藏滚动条
+      &::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      
+      // 加载状态
+      .loading-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px 20px;
+        
+        .loading-text {
+          font-size: 28px;
+          color: #999;
+        }
+      }
+      
+      // 空状态
+      .empty-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px 20px;
+        
+        .empty-text {
+          font-size: 28px;
+          color: #999;
+        }
+      }
+      
+      .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 528px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        border: 2px solid #b3d4ff;
+        transition: all 0.3s;
+        cursor: pointer;
+        
+        &:active {
+          transform: scale(0.98);
+        }
+        
+        &.selected {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-color: transparent;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          
+          .file-name,
+          .file-duration {
+            color: white;
+          }
+        }
+        
+        .file-info {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-right: 12px;
+          
+          .file-name {
+            font-size: 28px;
+            color: #333;
+            font-weight: 500;
+          }
+          
+          .file-duration {
+            font-size: 24px;
+            color: #999;
+          }
+        }
+        
+        .file-actions {
+          flex-shrink: 0;
+          
+          .action-btn {
+            padding: 8px 20px;
+            font-size: 26px;
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            
+            &.preview-btn {
+              background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+              color: white;
+              
+              &.playing {
+                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+                animation: pulse 1s infinite;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    .modal-footer {
+      display: flex;
+      gap: 12px;
+      padding: 16px 24px;
+      border-top: 1px solid #e0e0e0;
+      background-color: #f9f9f9;
+      
+      .cancel-btn,
+      .confirm-btn {
+        flex: 1;
+        padding: 12px;
+        font-size: 28px;
+        font-weight: 500;
+        border-radius: 24px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        
+        &::after {
+          border: none;
+        }
+      }
+      
+      .cancel-btn {
+        background: linear-gradient(135deg, #cccccc 0%, #999999 100%);
+        color: white;
+      }
+      
+      .confirm-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+    }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

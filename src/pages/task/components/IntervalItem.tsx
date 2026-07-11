@@ -5,7 +5,8 @@ import './TaskItem.scss'; // 复用现有样式
 interface IntervalTask {
   id: string;
   taskName: string;
-  fileName: string;
+  fileName: string; // 原始文件名，用于数据传输
+  displayName?: string; // 展示用的文件名（可选）
   filePath: string;
   volume: number;
   relayEnabled: boolean;
@@ -42,7 +43,7 @@ const IntervalItem: React.FC<IntervalItemProps> = ({ task, onEdit, onDelete }) =
       
       <View className="detail-row">
         <Text className="label">音频</Text>
-        <Text className="value">{task.fileName || '未选择文件'}</Text>
+        <Text className="value">音频文件.mp3</Text>
       </View>
       
       <View className="volume-relay-row">

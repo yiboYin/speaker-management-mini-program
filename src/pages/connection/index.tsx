@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, Button } from '@tarojs/components'
 import Taro, { useReachBottom, getStorageSync } from '@tarojs/taro'
 import Loading from '@/components/Loading'
-import { saveConnectedDevice, clearConnectedDevice } from '@/utils/deviceUtils';
+import { saveConnectedDevice, clearConnectedDevice, sendCurrentTimeToDevice } from '@/utils/deviceUtils';
 import { Device } from '@/types/device';
 import { getDeviceId, setDeviceId, getFilterDeviceName, setFilterDeviceName, getFilterServiceUUID, setFilterServiceUUID, getNotifyUUID, setNotifyUUID, getWriteUUID, setWriteUUID, getServiceUUID, setServiceUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
@@ -25,6 +25,8 @@ const ConnectionPage: React.FC = () => {
       },
       fail: (err) => {
         console.error('蓝牙模块初始化失败:', err);
+        // 隐藏loading图标
+        setShowLoading(false);
         // 如果初始化失败，提示用户
         Taro.showToast({
           title: '蓝牙初始化失败，请检查蓝牙设置',
@@ -88,7 +90,7 @@ const ConnectionPage: React.FC = () => {
   };
 
   const handleSearchDevice = () => {
-    // 显示loading组件，传入text：搜索中...
+    // 显示loading组件
     setShowLoading(true);
     
     // 清空之前的可用设备列表
@@ -136,7 +138,7 @@ const ConnectionPage: React.FC = () => {
         
         if (res.devices && res.devices.length > 0) {
           res.devices.forEach(device => {
-            if (device.deviceId && device.name && device.connectable !== false) { // 确保设备ID、名称存在且可连接
+            if (device.deviceId && device.name && device.connectable !== false) {
               const newDevice: Device = {
                 name: device.name || '未知设备',
                 status: 'disconnected',
@@ -149,7 +151,6 @@ const ConnectionPage: React.FC = () => {
                 connectable: device.connectable !== undefined ? device.connectable : true
               };
               
-              // 检查设备是否已存在于列表中
               const deviceExists = availableDevices.some(d => d.deviceId === newDevice.deviceId);
               if (!deviceExists) {
                 setAvailableDevices(prev => [...prev, newDevice]);
@@ -159,12 +160,9 @@ const ConnectionPage: React.FC = () => {
         }
       });
       
-      // 开始搜索蓝牙设备
       Taro.startBluetoothDevicesDiscovery({
         success: (res) => {
           console.log('启动蓝牙设备搜索成功:', res);
-          
-          // 3秒后停止搜索
           setTimeout(() => {
             stopDeviceDiscovery();
           }, 3000);
@@ -176,17 +174,16 @@ const ConnectionPage: React.FC = () => {
       });
     };
     
-    // 定义停止设备搜索的方法
     const stopDeviceDiscovery = () => {
       Taro.stopBluetoothDevicesDiscovery({
         success: () => {
           console.log('停止蓝牙设备搜索成功');
-          Taro.offBluetoothDeviceFound(); // 移除监听器
+          Taro.offBluetoothDeviceFound();
           setShowLoading(false);
         },
         fail: (err) => {
           console.error('停止蓝牙设备搜索失败:', err);
-          Taro.offBluetoothDeviceFound(); // 移除监听器
+          Taro.offBluetoothDeviceFound();
           setShowLoading(false);
         }
       });
@@ -194,7 +191,7 @@ const ConnectionPage: React.FC = () => {
   };
   
     // 获取设备服务和特征值信息并更新全局变量
-  const getDeviceServicesAndCharacteristics = (device: Device) => {
+  const getDeviceServicesAndCharacteristics = (device: Device, callback?: () => void) => {
     // 获取设备的所有服务
     Taro.getBLEDeviceServices({
       deviceId: device.deviceId,
@@ -259,6 +256,11 @@ const ConnectionPage: React.FC = () => {
                 filterDeviceName: device.name || device.localName || '',
                 deviceId: device.deviceId
               });
+              
+              // 服务信息获取成功后，执行回调
+              if (callback) {
+                callback();
+              }
             },
             fail: (charErr) => {
               console.error('获取服务特征值失败:', charErr);
@@ -268,6 +270,11 @@ const ConnectionPage: React.FC = () => {
               setFilterServiceUUID(firstNonSystemService.uuid);
               setFilterDeviceName(device.name || device.localName || '');
               setDeviceId(device.deviceId);
+              
+              // 执行回调
+              if (callback) {
+                callback();
+              }
             }
           });
         } else {
@@ -277,11 +284,21 @@ const ConnectionPage: React.FC = () => {
             setFilterServiceUUID(firstService.uuid);
             setFilterDeviceName(device.name || device.localName || '');
             setDeviceId(device.deviceId);
+            
+            // 执行回调
+            if (callback) {
+              callback();
+            }
           }
         }
       },
       fail: (servicesErr) => {
         console.error('获取设备服务失败:', servicesErr);
+        
+        // 执行回调
+        if (callback) {
+          callback();
+        }
       }
     });
   };
@@ -315,8 +332,26 @@ const ConnectionPage: React.FC = () => {
         // 清空可用设备列表
         setAvailableDevices([]);
         
-        // 获取设备的服务和特征值信息
-        getDeviceServicesAndCharacteristics(device);
+        // 获取设备的服务和特征值信息，获取成功后再发送时间同步指令
+        getDeviceServicesAndCharacteristics(device, () => {
+          // 连接成功后等待1秒再发送当前时间到设备
+          setTimeout(() => {
+            sendCurrentTimeToDevice().then((success) => {
+              if (success) {
+                console.log('时间同步成功');
+                Taro.showToast({
+                  title: '时间同步成功',
+                  icon: 'success',
+                  duration: 1500
+                });
+              } else {
+                console.warn('时间同步失败');
+              }
+            }).catch((error) => {
+              console.error('时间同步出错:', error);
+            });
+          }, 1000);
+        });
       },
       fail: (err) => {
         console.error('连接设备失败:', err);
@@ -335,8 +370,21 @@ const ConnectionPage: React.FC = () => {
               
               setAvailableDevices([]);
               
-              // 重连成功后同样获取服务信息
-              getDeviceServicesAndCharacteristics(device);
+              // 重连成功后同样获取服务信息，获取成功后再发送时间同步指令
+              getDeviceServicesAndCharacteristics(device, () => {
+                // 重连成功后等待1秒再发送当前时间到设备
+                setTimeout(() => {
+                  sendCurrentTimeToDevice().then((success) => {
+                    if (success) {
+                      console.log('重连后时间同步成功');
+                    } else {
+                      console.warn('重连后时间同步失败');
+                    }
+                  }).catch((error) => {
+                    console.error('重连后时间同步出错:', error);
+                  });
+                }, 1000);
+              });
             },
             fail: (err) => {
               console.error('重连设备也失败:', err);
@@ -352,64 +400,76 @@ const ConnectionPage: React.FC = () => {
 
   return (
     <View className="connection-page">
-      {/* 当前连接设备 */}
-      <View className="section">
-        <View className="connection-area">
-          <View className="connection-content">
-            <View className="connection-icon">
-              <Text>{currentDevice ? '🎧' : '📡'}</Text>
-            </View>
-            <View className="connection-text">
-              {currentDevice ? currentDevice.name : '请搜索并连接蓝牙设备'}
-            </View>
-          </View>
-          
-          {currentDevice && (
-            <Button 
-              className="disconnect-btn" 
-              onClick={() => {
-                setCurrentDevice(null);
-                // 同时清除缓存中的设备信息
-                clearConnectedDevice();
-                console.log('断开连接:', currentDevice.name);
-              }}
-            >
-              断开连接
-            </Button>
-          )}
+      {/* 顶部大图标区域（占上1/3） */}
+      <View className="top-section">
+        <View className="device-icon">
+          <Text>{currentDevice ? '🔊' : '📡'}</Text>
+        </View>
+        <View className="device-status">
+          <Text className="status-text">
+            {currentDevice ? currentDevice.name : '当前无连接设备'}
+          </Text>
         </View>
       </View>
       
-      {/* 可连接设备列表 */}
+      {/* 中间按钮区域 */}
+      <View className="middle-section">
+        {currentDevice ? (
+          <Button 
+            className="action-btn disconnect-btn"
+            onClick={() => {
+              if (currentDevice && currentDevice.deviceId) {
+                Taro.closeBLEConnection({
+                  deviceId: currentDevice.deviceId,
+                  success: () => {
+                    console.log('断开连接成功:', currentDevice.name);
+                    clearConnectedDevice();
+                    setCurrentDevice(null);
+                  },
+                  fail: (err) => {
+                    console.error('断开连接失败:', err);
+                  }
+                });
+              }
+            }}
+          >
+            断开连接
+          </Button>
+        ) : (
+          <Button 
+            className="action-btn search-btn"
+            onClick={handleSearchDevice}
+          >
+            搜索设备
+          </Button>
+        )}
+      </View>
+      
+      {/* 底部可连接设备列表 */}
       {availableDevices.length > 0 && (
-        <View className="section available-devices">
+        <View className="bottom-section">
           <View className="section-title">可连接设备</View>
           <View className="devices-list">
             {availableDevices.map((device) => (
               <View className="device-item" key={device.deviceId}>
                 <View className="device-info">
                   <Text className="device-name">{device.name || device.localName || '未知设备'}</Text>
-
                   <Text className="device-rssi">信号强度: {device.RSSI} dBm</Text>
-
                 </View>
-                {device.connectable !== false && <Button 
-                  className="connect-btn" 
-                  size="mini"
-                  onClick={() => connectToDevice(device)}
-                >
-                  连接
-                </Button>}
+                {device.connectable !== false && (
+                  <Button 
+                    className="connect-btn" 
+                    size="mini"
+                    onClick={() => connectToDevice(device)}
+                  >
+                    连接
+                  </Button>
+                )}
               </View>
             ))}
           </View>
         </View>
       )}
-      
-      {/* 底部搜索按钮 */}
-      <Button className="search-btn" onClick={handleSearchDevice}>
-        搜索设备
-      </Button>
       
       <Loading visible={showLoading} text="搜索中..." />
     </View>
