@@ -334,21 +334,23 @@ const ConnectionPage: React.FC = () => {
         
         // 获取设备的服务和特征值信息，获取成功后再发送时间同步指令
         getDeviceServicesAndCharacteristics(device, () => {
-          // 连接成功后发送当前时间到设备
-          sendCurrentTimeToDevice().then((success) => {
-            if (success) {
-              console.log('时间同步成功');
-              Taro.showToast({
-                title: '时间同步成功',
-                icon: 'success',
-                duration: 1500
-              });
-            } else {
-              console.warn('时间同步失败');
-            }
-          }).catch((error) => {
-            console.error('时间同步出错:', error);
-          });
+          // 连接成功后等待1秒再发送当前时间到设备
+          setTimeout(() => {
+            sendCurrentTimeToDevice().then((success) => {
+              if (success) {
+                console.log('时间同步成功');
+                Taro.showToast({
+                  title: '时间同步成功',
+                  icon: 'success',
+                  duration: 1500
+                });
+              } else {
+                console.warn('时间同步失败');
+              }
+            }).catch((error) => {
+              console.error('时间同步出错:', error);
+            });
+          }, 1000);
         });
       },
       fail: (err) => {
@@ -370,16 +372,18 @@ const ConnectionPage: React.FC = () => {
               
               // 重连成功后同样获取服务信息，获取成功后再发送时间同步指令
               getDeviceServicesAndCharacteristics(device, () => {
-                // 重连成功后也发送当前时间到设备
-                sendCurrentTimeToDevice().then((success) => {
-                  if (success) {
-                    console.log('重连后时间同步成功');
-                  } else {
-                    console.warn('重连后时间同步失败');
-                  }
-                }).catch((error) => {
-                  console.error('重连后时间同步出错:', error);
-                });
+                // 重连成功后等待1秒再发送当前时间到设备
+                setTimeout(() => {
+                  sendCurrentTimeToDevice().then((success) => {
+                    if (success) {
+                      console.log('重连后时间同步成功');
+                    } else {
+                      console.warn('重连后时间同步失败');
+                    }
+                  }).catch((error) => {
+                    console.error('重连后时间同步出错:', error);
+                  });
+                }, 1000);
               });
             },
             fail: (err) => {
