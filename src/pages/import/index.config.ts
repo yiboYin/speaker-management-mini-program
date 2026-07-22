@@ -1,3 +1,3 @@
 export default definePageConfig({
-  navigationBarTitleText: '导入'
+  navigationBarTitleText: '音频'
 })

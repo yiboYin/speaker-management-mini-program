@@ -3,10 +3,15 @@ import { View, Text, Button, Textarea, ScrollView } from '@tarojs/components'
 import Taro, { cloud } from '@tarojs/taro'
 import './index.scss'
 
-// 音色选项（阿里云百炼支持的音色）
+// 音色选项（阿里云百炼 CosyVoice v3 Flash 支持的音色）
 const VOICE_OPTIONS = [
-  { value: 'longanyang', label: '龙安洋（男）' },
-  { value: 'longanhuan', label: '龙安欢（女）' }
+  // 标准音色
+  { value: 'longanyang', label: '龙安洋' },
+  { value: 'longanhuan', label: '龙安欢' },
+  { value: 'longze_v3', label: '龙泽' },
+  { value: 'longcheng_v3', label: '龙橙' },
+  { value: 'longyan_v3', label: '龙颜' },
+  { value: 'longxing_v3', label: '龙星' },
 ];
 
 // 阿里云百炼配置

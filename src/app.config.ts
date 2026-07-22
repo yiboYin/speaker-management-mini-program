@@ -1,6 +1,7 @@
 export default defineAppConfig({
   pages: [
     'pages/connection/index',
+    'pages/connection/device-list/index',
     'pages/task/index',
     'pages/import/index',
     'pages/setting/index',
@@ -22,27 +23,15 @@ export default defineAppConfig({
     list: [
       {
         pagePath: 'pages/connection/index',
-        text: '连接',
+        text: '设备',
         iconPath: 'assets/images/connection.png',
         selectedIconPath: 'assets/images/connection-selected.png'
       },
       {
-        pagePath: 'pages/task/index',
-        text: '任务',
-        iconPath: 'assets/images/task.png',
-        selectedIconPath: 'assets/images/task-selected.png'
-      },
-      {
         pagePath: 'pages/import/index',
-        text: '导入',
+        text: '音频',
         iconPath: 'assets/images/import.png',
         selectedIconPath: 'assets/images/import-selected.png'
-      },
-      {
-        pagePath: 'pages/setting/index',
-        text: '设置',
-        iconPath: 'assets/images/setting.png',
-        selectedIconPath: 'assets/images/setting-selected.png'
       }
     ]
   }

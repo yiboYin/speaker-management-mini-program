@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Button, ScrollView } from '@tarojs/components'
-import Taro, { useReachBottom, navigateTo } from '@tarojs/taro'
-import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit } from '@/utils/deviceUtils';
-import { FILE_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
+import Taro, { useReachBottom, navigateTo, useDidShow } from '@tarojs/taro'
+import DeviceConnection from '@/components/DeviceConnection'
+import { sendCommandToDevice, getConnectedDevice, writeCommandToDeviceWithSplit, decodeUtf8Bytes, stringToUtf8Bytes } from '@/utils/deviceUtils';
+import { FILE_COMMANDS, CONTROL_COMMANDS, RESPONSE_CODES, RESULT_CODES } from '@/constants/bluetoothCommands';
 import { getFilterServiceUUID, getWriteUUID, getNotifyUUID } from '@/utils/bluetoothConfig';
 import './index.scss'
 
@@ -20,9 +21,26 @@ const ImportPage: React.FC = () => {
   // 真实文件列表数据
   const [fileList, setFileList] = useState<any[]>([]);
   
+  // 当前连接的设备
+  const [currentDevice, setCurrentDevice] = useState<any>(null);
+  
+  // 每次页面显示时检查设备状态
+  useDidShow(() => {
+    console.log('Import页面显示，检查设备连接状态');
+    const savedDevice = getConnectedDevice();
+    if (savedDevice) {
+      console.log('检测到已连接设备:', savedDevice.name);
+      setCurrentDevice(savedDevice);
+    } else {
+      console.log('未检测到已连接设备');
+      setCurrentDevice(null);
+    }
+  });
+  
   // 组件挂载时加载文件列表
   useEffect(() => {
-    loadFileList();
+    // 进入页面时查询设备文件
+    loadDeviceFiles();
     
     // 监听来自合成页面的事件 - 使用全局事件总线
     Taro.eventCenter.on('synthesisComplete', (data: any) => {
@@ -38,7 +56,8 @@ const ImportPage: React.FC = () => {
         duration: data.duration || '--:--',
         path: data.filePath,
         isSynthesized: true, // 标记为合成文件
-        text: data.text // 保存合成文本
+        text: data.text, // 保存合成文本
+        method: '文字合成' // 标记为文字合成
       };
       
       setFileList(prevList => [newFile, ...prevList]);
@@ -123,7 +142,8 @@ const ImportPage: React.FC = () => {
                 sizeInBytes: file.size, // 保存原始字节数
                 date: dateStr,
                 duration: '--:--', // 从文件选择器获取的文件通常不包含时长信息
-                path: file.path || file.filePath || file.tempFilePath // 记录文件路径
+                path: file.path || file.filePath || file.tempFilePath, // 记录文件路径
+                method: '手机导入' // 标记为手机导入
               };
             });
             
@@ -161,6 +181,98 @@ const ImportPage: React.FC = () => {
     }
   };
   
+  // 设备播放（发送蓝牙指令让设备播放文件）
+  const playFileOnDevice = async () => {
+    if (!selectedFileId) {
+      Taro.showToast({
+        title: '请先选择一个文件',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+    
+    // 查找选中的文件
+    const selectedFile = fileList.find(file => file.id === selectedFileId);
+    
+    if (!selectedFile) {
+      Taro.showToast({
+        title: '找不到选中的文件',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+    
+    // 检查蓝牙设备是否已连接
+    const device = getConnectedDevice();
+    if (!device) {
+      Taro.showToast({
+        title: '请先连接蓝牙设备',
+        icon: 'none',
+        duration: 2000
+      });
+      navigateTo({
+        url: '/pages/connection/index'
+      });
+      return;
+    }
+    
+    console.log(`设备播放文件: ${selectedFile.name}`);
+    
+    // 构造带分隔符的文件名（例如："/1111"）
+    const fileNameWithSlash = `/${selectedFile.name}`;
+    
+    // 构造播放指定文件的指令
+    const playCommand = CONTROL_COMMANDS.PLAY_FILE(fileNameWithSlash);
+    
+    console.log('播放指令:', playCommand);
+    console.log('文件名（含分隔符）:', fileNameWithSlash);
+    
+    sendCommandToDevice(playCommand, (data) => {
+      // 处理播放操作的返回数据
+      console.log(`设备播放返回数据:`, data);
+      
+      // 检查应答是否成功
+      // 预期响应: 7E 04 02 02 71 01 (成功) 或 7E 04 02 02 71 00 (失败)
+      if (data && data.resValue && data.resValue.length >= 5) {
+        const responseCmd = data.resValue[4]; // 应该是 0x71（第5个字节）
+        const result = data.resValue[5]; // 01=成功, 00=失败（第6个字节）
+        
+        if (responseCmd === RESPONSE_CODES.PLAY_FILE_RESULT) {
+          if (result === RESULT_CODES.SUCCESS) {
+            console.log('文件播放成功');
+            Taro.showToast({
+              title: '开始播放',
+              icon: 'success',
+              duration: 1500
+            });
+          } else {
+            console.warn('文件播放失败');
+            Taro.showToast({
+              title: '播放失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        } else {
+          console.warn('收到未知响应命令码:', responseCmd.toString(16));
+        }
+      }
+      return false;
+    }).then(() => {
+      console.log('播放指令发送完成');
+    }).catch((error) => {
+      console.error('播放指令发送失败:', error);
+      Taro.showToast({
+        title: '播放指令发送失败',
+        icon: 'none',
+        duration: 2000
+      });
+    });
+  };
+  
+  // 手机试听（在手机上播放音频文件）
   const playSelectedFile = () => {
     if (!selectedFileId) {
       Taro.showToast({
@@ -250,6 +362,61 @@ const ImportPage: React.FC = () => {
         duration: 2000
       });
     }
+  };
+  
+  // 同步文件到手机（从设备读取文件列表）
+  const syncFilesFromDevice = async () => {
+    // 检查蓝牙设备是否已连接
+    const device = getConnectedDevice();
+    if (!device) {
+      Taro.showToast({
+        title: '请先连接蓝牙设备',
+        icon: 'none',
+        duration: 2000
+      });
+      navigateTo({
+        url: '/pages/connection/index'
+      });
+      return;
+    }
+    
+    // 确认同步
+    Taro.showModal({
+      title: '确认同步',
+      content: '将从设备读取文件列表并同步到手机，是否继续？',
+      success: async (res) => {
+        if (res.confirm) {
+          try {
+            setIsImporting(true);
+            Taro.showLoading({
+              title: '正在同步...',
+              mask: true
+            });
+            
+            // 调用已有的loadDeviceFiles函数
+            await loadDeviceFiles();
+            
+            Taro.hideLoading();
+            setIsImporting(false);
+            
+            Taro.showToast({
+              title: '同步成功',
+              icon: 'success',
+              duration: 1500
+            });
+          } catch (error) {
+            console.error('同步文件失败:', error);
+            Taro.hideLoading();
+            setIsImporting(false);
+            Taro.showToast({
+              title: '同步失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        }
+      }
+    });
   };
   
   const sendFileToDevice = async () => {
@@ -467,12 +634,26 @@ const ImportPage: React.FC = () => {
           const result = data.resValue[data.resValue.length - 1]; // 结果 01=成功, 00=失败
           
           if (responseCmd === RESPONSE_CODES.FILE_TRANSFER_CONFIRM && result === RESULT_CODES.SUCCESS) {
+            // 文件发送成功
             Taro.hideLoading();
             setIsImporting(false); // 恢复按钮状态
+            
+            // 删除当前选中的文件记录
+            if (selectedFileId) {
+              setFileList(prevList => prevList.filter(file => file.id !== selectedFileId));
+              setSelectedFileId(null);
+            }
+            
             Taro.showToast({
               title: '文件发送成功',
               icon: 'success',
-              duration: 2000
+              duration: 1500,
+              success: () => {
+                // Toast显示完成后，重新查询设备文件列表
+                setTimeout(() => {
+                  loadDeviceFiles();
+                }, 1500);
+              }
             });
           } else {
             Taro.hideLoading();
@@ -567,92 +748,329 @@ const ImportPage: React.FC = () => {
     return hex.trim();
   };
   
+  // 删除文件
+  const handleDeleteFile = (fileId: string) => {
+    console.log('删除文件:', fileId);
+    
+    // 查找要删除的文件
+    const fileToDelete = fileList.find(file => file.id === fileId);
+    if (!fileToDelete) {
+      Taro.showToast({
+        title: '找不到文件',
+        icon: 'none',
+        duration: 1500
+      });
+      return;
+    }
+    
+    // 如果是设备同步的文件，需要发送删除指令到设备
+    if (fileToDelete.method === '设备同步') {
+      Taro.showModal({
+        title: '确认删除',
+        content: `确定要从设备中删除 ${fileToDelete.name} 吗？`,
+        success: (res) => {
+          if (res.confirm) {
+            console.log(`删除文件: ${fileToDelete.name}`);
+            
+            // 构造带分隔符的文件名（例如："/1111"）
+            const fileNameWithSlash = `/${fileToDelete.name}`;
+            
+            // 构造删除文件指令
+            const deleteCommand = FILE_COMMANDS.DELETE_FILE(fileNameWithSlash);
+            
+            console.log('删除指令:', deleteCommand);
+            console.log('文件名（含分隔符）:', fileNameWithSlash);
+            
+            sendCommandToDevice(deleteCommand, (data) => {
+              // 处理删除文件操作的返回数据
+              console.log(`删除文件返回数据:`, data);
+              
+              // 根据协议规范，设备返回: 7E 04 02 02 73 [结果] (成功/失败)
+              if (data && data.resValue && data.resValue.length >= 6) {
+                const responseCmd = data.resValue[4]; // 应答命令码 应该是 0x73（第5个字节）
+                const result = data.resValue[5]; // 结果 01=成功, 00=失败（第6个字节）
+                
+                if (responseCmd === RESPONSE_CODES.DELETE_FILE_RESULT && result === RESULT_CODES.SUCCESS) {
+                  // 删除成功，从本地列表中移除该文件
+                  setFileList(prevList => prevList.filter(file => file.id !== fileId));
+                  
+                  // 如果删除的是当前选中的文件，清空选中状态
+                  if (selectedFileId === fileId) {
+                    setSelectedFileId(null);
+                  }
+                  
+                  console.log(`文件 ${fileId} 删除成功`);
+                  
+                  Taro.showToast({
+                    title: '文件删除成功',
+                    icon: 'success',
+                    duration: 2000
+                  });
+                } else {
+                  console.log(`文件 ${fileId} 删除失败`);
+                  
+                  Taro.showToast({
+                    title: '文件删除失败',
+                    icon: 'none',
+                    duration: 2000
+                  });
+                }
+              }
+              return false;
+            }).then(() => {
+              console.log('删除文件指令发送完成');
+            }).catch((error) => {
+              console.error('删除文件指令发送失败:', error);
+              Taro.showToast({
+                title: '删除文件指令发送失败',
+                icon: 'none',
+                duration: 2000
+              });
+            });
+          }
+        }
+      });
+    } else {
+      // 非设备同步的文件（文字合成、手机导入），直接从本地列表删除
+      Taro.showModal({
+        title: '确认删除',
+        content: '确定要删除这个文件吗？',
+        success: (res) => {
+          if (res.confirm) {
+            setFileList(prevList => prevList.filter(file => file.id !== fileId));
+            
+            // 如果删除的是当前选中的文件，清空选中状态
+            if (selectedFileId === fileId) {
+              setSelectedFileId(null);
+            }
+            
+            Taro.showToast({
+              title: '删除成功',
+              icon: 'success',
+              duration: 1500
+            });
+          }
+        }
+      });
+    }
+  };
+  
+  // 读取设备文件列表
+  const loadDeviceFiles = () => {
+    console.log('读取设备文件列表');
+    
+    // 清空现有文件列表
+    setFileList([]);
+    
+    // 发送指令到设备
+    sendCommandToDevice(FILE_COMMANDS.READ_FILE_LIST, (data) => {
+      console.log('从设备接收到数据:', data);
+      
+      // 解析设备返回的文件数据
+      if (data.resValue && data.resValue.length >= 5) {
+        const responseCmd = data.resValue[4]; // 响应命令码低位（0x31）
+        
+        // 检查是否是文件列表响应（0x31）
+        if (responseCmd === RESPONSE_CODES.FILE_LIST_ITEM) {
+          // 文件名数据从第5个字节开始
+          const fileNameDataBytes = data.resValue.slice(5);
+          
+          // 无文件情况：数据部分只有一个 0x00 字节
+          if (fileNameDataBytes.length === 1 && fileNameDataBytes[0] === 0x00) {
+            console.log('设备无文件');
+            setFileList([]);
+            return false;
+          }
+          
+          // 将字节数组转换为字符串
+          const fileNameStr = decodeUtf8Bytes(new Uint8Array(fileNameDataBytes));
+          console.log('文件名原始字符串:', fileNameStr);
+          
+          // 按"/"分割文件名（首字节是"/"，所以会先得到一个空串，filter 掉）
+          const fileNames = fileNameStr.split('/').filter(name => name.length > 0);
+          console.log('解析到的文件名:', fileNames);
+          
+          // 构造文件列表
+          const newFileList = fileNames.map((name, index) => ({
+            id: `device_${index + 1}`,
+            name, // 原始文件名（不含.mp3后缀），用于数据传输
+            size: '--',
+            sizeInBytes: 0,
+            date: new Date().toISOString().split('T')[0],
+            duration: '--:--',
+            path: '',
+            method: '设备同步' // 标记为设备同步
+          }));
+          
+          console.log('构造的设备文件列表:', newFileList);
+          setFileList(newFileList);
+          
+          Taro.showToast({
+            title: `获取到 ${newFileList.length} 个文件`,
+            icon: 'success',
+            duration: 1500
+          });
+        }
+      }
+      return false;
+    }).catch((error) => {
+      console.error('读取设备文件失败:', error);
+      Taro.showToast({
+        title: '读取设备文件失败',
+        icon: 'none',
+        duration: 2000
+      });
+    });
+  };
+  
 
   return (
     <View className="import-page">
-      {/* 工具栏（移除绝对定位） */}
-      <View className="toolbar">
-        <View className="left-buttons">
-          <Button 
-            className="toolbar-btn" 
-            disabled={isImporting}
-            onClick={() => {
-              // 跳转到合成页面
-              navigateTo({
-                url: '/pages/import/synthesis/index'
-              });
-            }}
-          >
-            合成
-          </Button>
-          <Button 
-            className="toolbar-btn" 
-            disabled={isImporting}
-            onClick={selectFiles}
-          >
-            导入
-          </Button>
-        </View>
-        <View className="right-buttons">
-          <Button 
-            className="clear-btn"
-            disabled={isImporting}
-          >
-            清空
-          </Button>
-        </View>
+      {/* 顶部设备连接区域 */}
+      <View className="top-section">
+        <DeviceConnection 
+          currentDevice={currentDevice}
+          onClick={() => {
+            // 点击跳转到设备列表页面
+            navigateTo({
+              url: '/pages/connection/device-list/index'
+            });
+          }}
+        />
       </View>
       
-      {/* 可滚动的文件列表区域 */}
-      <ScrollView 
-        className="file-list-container"
-        scrollY={true}
-      >
-        {fileList.map(file => (
-          <View 
-            key={file.id} 
-            className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`} 
-            onClick={() => setSelectedFileId(file.id)}
-          >
-            <Text className="file-name">
-              {file.isSynthesized && <Text className="synth-tag">[合成]</Text>}
-              {file.name} ({file.date})
-            </Text>
-            <Text className="file-duration">{file.duration}</Text>
-            <Button 
-              className="delete-btn" 
-              disabled={isImporting}
-              onClick={(e) => {
-                e.stopPropagation(); // 阻止点击事件冒泡到父元素
-                // 删除文件逻辑
-                console.log('删除文件:', file.id);
-              }}
-            >
-              ×
-            </Button>
-          </View>
-        ))}
-      </ScrollView>
+      {/* 工具栏 */}
+      <View className="toolbar">
+        <Button 
+          className="toolbar-btn" 
+          disabled={isImporting}
+          onClick={() => {
+            // 跳转到合成页面
+            navigateTo({
+              url: '/pages/import/synthesis/index'
+            });
+          }}
+        >
+          <Text className="btn-icon">T</Text>
+          <Text>文字合成</Text>
+        </Button>
+        <Button 
+          className="toolbar-btn" 
+          disabled={isImporting}
+          onClick={selectFiles}
+        >
+          <Text className="btn-icon">↓</Text>
+          <Text>手机导入</Text>
+        </Button>
+        <Button 
+          className="toolbar-btn" 
+          disabled={isImporting}
+          onClick={syncFilesFromDevice}
+        >
+          <Text className="btn-icon">↻</Text>
+          <Text>设备同步</Text>
+        </Button>
+      </View>
+      
+      {/* 音频列表 */}
+      <View className="file-list-section">
+        <ScrollView 
+          className="file-list-container"
+          scrollY={true}
+        >
+          {fileList.length > 0 ? (
+            fileList.map((file, index) => (
+              <View 
+                key={file.id} 
+                className={`file-item ${selectedFileId === file.id ? 'selected' : ''}`} 
+                onClick={() => setSelectedFileId(file.id)}
+              >
+                <View className="file-info">
+                  <Text className="file-name">{file.name}</Text>
+                  <Text className="file-meta">{file.method || '未知'} · 时长: {file.duration || '--'}</Text>
+                </View>
+                <View className="delete-btn-wrapper">
+                  <Button 
+                    className="delete-btn-circle"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteFile(file.id);
+                    }}
+                  >
+                    ×
+                  </Button>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View className="empty-file-list">
+              暂无文件
+            </View>
+          )}
+        </ScrollView>
+      </View>
       
       {/* 底部操作按钮容器 - 仅在选中文件时显示 */}
-      {selectedFileId && (
-        <View className="bottom-action-container">
-          <Button 
-            className="action-btn send-to-device" 
-            disabled={isImporting}
-            onClick={() => sendFileToDevice()}
-          >
-            发送到设备
-          </Button>
-          <Button 
-            className="action-btn preview" 
-            disabled={isImporting}
-            onClick={() => playSelectedFile()}
-          >
-            试听
-          </Button>
-        </View>
-      )}
+      {selectedFileId && (() => {
+        const selectedFile = fileList.find(file => file.id === selectedFileId);
+        if (!selectedFile) return null;
+        
+        // 根据方式决定显示哪些按钮
+        if (selectedFile.method === '设备同步') {
+          // 设备同步的文件只显示"设备播放"按钮（发送蓝牙指令）
+          return (
+            <View className="bottom-action-container">
+              <View className="action-spacer"></View>
+              <View className="action-btn-wrapper">
+                <Button 
+                  className="action-btn-circle device-play" 
+                  disabled={isImporting}
+                  onClick={() => playFileOnDevice()}
+                >
+                  ▶
+                </Button>
+                <Text className="btn-label">设备播放</Text>
+              </View>
+            </View>
+          );
+        } else {
+          // 其他方式（文字合成、手机导入）显示"发送到设备"、"快速下载"和"试听"三个按钮
+          return (
+            <View className="bottom-action-container">
+              <View className="action-btn-wrapper">
+                <Button 
+                  className="action-btn-circle send-to-device" 
+                  disabled={isImporting}
+                  onClick={() => sendFileToDevice()}
+                >
+                  ↓
+                </Button>
+                <Text className="btn-label">下载到设备</Text>
+              </View>
+              <View className="action-btn-wrapper">
+                <Button 
+                  className="action-btn-circle quick-download" 
+                  disabled={isImporting}
+                  onClick={() => quickSyncToDevice()}
+                >
+                  ⚡
+                </Button>
+                <Text className="btn-label">快速下载</Text>
+              </View>
+              <View className="action-btn-wrapper">
+                <Button 
+                  className="action-btn-circle preview" 
+                  disabled={isImporting}
+                  onClick={() => playSelectedFile()}
+                >
+                  ▶
+                </Button>
+                <Text className="btn-label">文件试听</Text>
+              </View>
+            </View>
+          );
+        }
+      })()}
     </View>
   )
 }

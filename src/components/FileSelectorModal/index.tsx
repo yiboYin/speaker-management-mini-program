@@ -27,7 +27,6 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
   onConfirm,
   onCancel
 }) => {
-  const [previewingFileId, setPreviewingFileId] = useState<string>(''); // 正在预览的文件ID
   const [files, setFiles] = useState<FileItem[]>([]); // 文件列表
   const [loading, setLoading] = useState(false); // 加载状态
   
@@ -115,15 +114,6 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
 
   // 试听音频（发送指令给硬件设备播放）
   const playAudio = async (fileId: string, fileName: string) => {
-    // 如果正在预览同一个文件，则停止
-    if (previewingFileId === fileId) {
-      stopPreview();
-      return;
-    }
-    
-    // 停止之前的预览
-    stopPreview();
-    
     try {
       console.log('发送试听指令到硬件设备:', { fileId, fileName });
       
@@ -180,17 +170,10 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         }, 3000);
       }).then((success) => {
         if (success) {
-          setPreviewingFileId(fileId);
-          
           Taro.showToast({
             title: '开始试听',
             icon: 'success'
           });
-          
-          // 模拟播放结束（实际应该监听硬件返回的状态）
-          setTimeout(() => {
-            setPreviewingFileId('');
-          }, 5000); // 假设播放5秒后自动结束
         } else {
           Taro.showToast({
             title: '试听失败',
@@ -214,38 +197,14 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     }
   };
   
-  // 停止预览
-  const stopPreview = async () => {
-    if (previewingFileId) {
-      try {
-        console.log('发送停止指令到硬件设备');
-        
-        // 发送停止播放指令
-        await sendCommandToDevice(CONTROL_COMMANDS.STOP_PLAY, (data) => {
-          console.log('停止响应:', data);
-        });
-        
-        setPreviewingFileId('');
-        
-        Taro.showToast({
-          title: '已停止播放',
-          icon: 'none'
-        });
-      } catch (error) {
-        console.error('发送停止指令失败:', error);
-      }
-    }
-  };
-  
   // 监听弹窗显示状态，每次打开时获取文件列表
   useEffect(() => {
     if (visible && files.length === 0) {
       // 弹窗打开且文件列表为空时，获取文件列表
       fetchFileList();
     } else if (!visible) {
-      // 弹窗关闭时，清空文件列表和预览状态
+      // 弹窗关闭时，清空文件列表
       setFiles([]);
-      setPreviewingFileId('');
     }
   }, [visible]);
 
@@ -289,13 +248,13 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                 
                 <View className="file-actions">
                   <Button 
-                    className={`action-btn preview-btn ${previewingFileId === file.id ? 'playing' : ''}`}
+                    className="action-btn preview-btn"
                     onClick={(e) => {
                       e.stopPropagation();
                       playAudio(file.id, file.name);
                     }}
                   >
-                    {previewingFileId === file.id ? '停止' : '试听'}
+                    试听
                   </Button>
                 </View>
               </View>

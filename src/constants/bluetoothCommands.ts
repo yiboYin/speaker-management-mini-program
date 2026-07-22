@@ -54,6 +54,9 @@ export const CONTROL_COMMANDS = {
   VOLUME_UP: '7E 03 01 02 0A',
   VOLUME_DOWN: '7E 03 01 02 0B',
   
+  // 静音控制
+  MUTE_TOGGLE: '7E 03 01 02 80',
+  
   // 设备状态查询
   GET_DEVICE_STATUS: '7E 03 01 02 10',
   
@@ -107,6 +110,7 @@ export const RESPONSE_CODES = {
   // 控制类响应
   DEVICE_STATUS: 0x11,
   TIME_SYNC_CONFIRM: 0xA1, // 时间同步确认
+  MUTE_TOGGLE_RESULT: 0x81, // 静音切换结果
   
   // 文件管理响应
   FILE_LIST_ITEM: 0x31,

@@ -46,7 +46,26 @@ const SettingPage: React.FC = () => {
     switch(action) {
       case 'factoryReset':
         command = CONTROL_COMMANDS.FACTORY_RESET;
-        break;
+        
+        // 发送恢复出厂设置指令
+        sendCommandToDevice(command, (data) => {
+          console.log('恢复出厂设置返回数据:', data);
+          return false;
+        }).then(() => {
+          Taro.showToast({
+            title: '恢复出厂设置成功',
+            icon: 'success',
+            duration: 2000
+          });
+        }).catch((error) => {
+          console.error('恢复出厂设置失败:', error);
+          Taro.showToast({
+            title: '恢复出厂设置失败',
+            icon: 'none',
+            duration: 2000
+          });
+        });
+        return; // 直接返回，不执行后续的通用逻辑
       case 'powerToggle':
         // 先获取设备状态，然后切换开关机状态
         sendCommandToDevice(CONTROL_COMMANDS.GET_DEVICE_STATUS, (data) => {

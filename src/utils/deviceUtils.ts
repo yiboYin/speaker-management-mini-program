@@ -1,21 +1,23 @@
-import Taro, { getStorageSync } from '@tarojs/taro';
+import Taro from '@tarojs/taro';
 import { Device } from '../types/device';
 import { FILE_COMMANDS } from '@/constants/bluetoothCommands';
 
+// 全局连接设备状态（仅在当前会话中有效）
+let connectedDevice: Device | null = null;
+
 // 获取连接设备的函数
 export const getConnectedDevice = (): Device | null => {
-  const device = getStorageSync('connectedDevice') as Device | undefined;
-  return device || null;
+  return connectedDevice;
 };
 
 // 保存连接设备的函数
 export const saveConnectedDevice = (device: Device): void => {
-  Taro.setStorageSync('connectedDevice', device);
+  connectedDevice = device;
 };
 
 // 清除连接设备的函数
 export const clearConnectedDevice = (): void => {
-  Taro.removeStorageSync('connectedDevice');
+  connectedDevice = null;
 };
 
 // ArrayBuffer转16进制字符串
@@ -378,8 +380,8 @@ export const writeCommandToDeviceWithSplit = async (
     console.log('已开启屏幕常亮');
     
     const bytes = new Uint8Array(buffer);
-    const maxDataPerPacket = 128; // 每包固定128字节数据
-    const packetTotalSize = 1 + 2 + maxDataPerPacket + 1; // 帧头(1) + 帧序号(2) + 数据(256) + 校验位(1) = 260字节
+    const maxDataPerPacket = 128; // 每包固定携带128字节纯数据
+    const maxPacketTotalSize = 1 + 2 + maxDataPerPacket; // 总长度 = 1(帧头) + 2(帧序号) + 128(数据) = 131字节
     
     console.log(`准备分包发送数据:`, {
       原始数据大小: bytes.length,
@@ -460,8 +462,8 @@ export const writeCommandToDeviceWithSplit = async (
       const dataEnd = Math.min(dataStart + maxDataPerPacket, bytes.length);
       const packetData = bytes.slice(dataStart, dataEnd);
       
-      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度) + 校验位(1)
-      const packetTotalSize = 1 + 2 + packetData.length + 1; // 根据实际数据长度动态计算
+      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度)
+      const packetTotalSize = 1 + 2 + packetData.length; // 根据实际数据长度动态计算（总长度≤131）
       const packetWithHeader = new Uint8Array(packetTotalSize);
       
       // 帧头
@@ -474,13 +476,6 @@ export const writeCommandToDeviceWithSplit = async (
       // 数据主体（实际长度）
       packetWithHeader.set(packetData, 3);
       
-      // 计算校验位：所有字节相加取低8位
-      let checksum = 0;
-      for (let i = 0; i < packetTotalSize - 1; i++) {
-        checksum += packetWithHeader[i];
-      }
-      packetWithHeader[packetTotalSize - 1] = checksum & 0xFF;
-      
       // 创建当前数据包的 ArrayBuffer
       const packetBuffer = packetWithHeader.buffer;
       
@@ -489,7 +484,6 @@ export const writeCommandToDeviceWithSplit = async (
         帧序号: packetIndex,
         实际数据长度: packetData.length,
         总长度: packetTotalSize,
-        校验位: `0x${(checksum & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`,
         已发送字节: sentBytes,
         剩余字节: bytes.length - sentBytes
       });
@@ -624,7 +618,7 @@ export const writeCommandToDeviceWithSplit = async (
   }
 };
 
-// 发送当前时间到设备
+// 发送当前时间到设备（不需要应答）
 export const sendCurrentTimeToDevice = async (): Promise<boolean> => {
   try {
     // 获取当前连接的设备
@@ -674,48 +668,167 @@ export const sendCurrentTimeToDevice = async (): Promise<boolean> => {
     // 整体长度 = 命令码(2) + 方向(1) + 数据(7) = 10 = 0x0A
     const command = `7E 0A 01 02 A0 ${timeDataHex}`;
     
-    console.log('发送时间同步指令:', command);
+    console.log('发送时间同步指令（无需应答）:', command);
     
-    // 发送指令并等待确认
-    await new Promise<boolean>((resolve, reject) => {
-      let timeoutId: any;
-      
-      sendCommandToDevice(command, (data) => {
-        console.log('时间同步响应:', data);
-        
-        // 清除超时定时器
-        if (timeoutId) clearTimeout(timeoutId);
-        
-        // 检查应答是否成功
-        // 预期响应: 7E 03 02 02 A1
-        if (data && data.resValue && data.resValue.length >= 4) {
-          const responseCmd = data.resValue[4]; // 应该是 0xA1
-          
-          if (responseCmd === 0xA1) {
-            console.log('时间同步成功');
-            resolve(true);
-          } else {
-            console.warn('收到未知响应命令码:', responseCmd.toString(16));
-            resolve(false);
-          }
-        } else {
-          console.warn('收到无效应答');
-          resolve(false);
-        }
-        
-        return false; // 取消监听
-      });
-      
-      // 设置超时保护（3秒）
-      timeoutId = setTimeout(() => {
-        console.error('等待时间同步应答超时');
-        reject(new Error('等待时间同步应答超时'));
-      }, 3000);
-    });
+    // 直接发送指令，不等待应答
+    await writeCommandToDevice(
+      command,
+      device.deviceId,
+      (await import('@/utils/bluetoothConfig')).getFilterServiceUUID(),
+      (await import('@/utils/bluetoothConfig')).getWriteUUID()
+    );
     
+    console.log('时间同步指令已发送');
     return true;
   } catch (error) {
     console.error('发送时间同步失败:', error);
     return false;
+  }
+};
+
+// 快速分包发送大于20字节的数据（无应答确认，固定40ms间隔）
+// 总长度244字节（帧头1 + 帧序号2 + 数据241），无校验位
+export const writeCommandToDeviceWithSplitFast = async (
+  buffer: ArrayBuffer, 
+  deviceId: string, 
+  serviceUUID: string, 
+  writeUUID: string,
+  onProgress?: (progress: number) => void  // 进度回调函数，返回 0-100 的进度值
+): Promise<boolean> => {
+  if (!deviceId) {
+    throw new Error('未找到已连接的设备ID');
+  }
+  
+  if (!serviceUUID) {
+    throw new Error('未找到服务UUID');
+  }
+  
+  if (!writeUUID) {
+    throw new Error('未找到写特征UUID');
+  }
+  
+  try {
+    // 开启屏幕常亮，防止传输过程中息屏导致连接断开
+    await Taro.setKeepScreenOn({ keepScreenOn: true });
+    console.log('已开启屏幕常亮（快速模式）');
+    
+    const bytes = new Uint8Array(buffer);
+    const maxDataPerPacket = 241; // 每包固定携带241字节纯数据
+    const maxPacketTotalSize = 1 + 2 + maxDataPerPacket; // 总长度 = 1(帧头) + 2(帧序号) + 241(数据) = 244字节
+    
+    const totalPackets = Math.ceil(bytes.length / maxDataPerPacket);
+    
+    console.log(`准备快速分包发送数据:`, {
+      原始数据大小: bytes.length,
+      每包数据量: maxDataPerPacket,
+      包总长度: maxPacketTotalSize,
+      预计包数: totalPackets,
+      发送间隔: '40ms'
+    });
+    
+    // 显示即将发送的数据包数量提示
+    Taro.showToast({
+      title: `准备发送 ${totalPackets} 个数据包`,
+      icon: 'none',
+      duration: 1500
+    });
+    
+    let sentBytes = 0; // 已发送的字节数
+    let packetIndex = 0; // 包索引，从0开始
+    
+    // 循环发送所有数据包
+    while (sentBytes < bytes.length) {
+      // 计算当前包的实际数据起始和结束位置
+      const dataStart = sentBytes;
+      const dataEnd = Math.min(dataStart + maxDataPerPacket, bytes.length);
+      const packetData = bytes.slice(dataStart, dataEnd);
+      
+      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度)
+      const packetTotalSize = 1 + 2 + packetData.length; // 根据实际数据长度动态计算（总长度≤244）
+      const packetWithHeader = new Uint8Array(packetTotalSize);
+      
+      // 帧头
+      packetWithHeader[0] = 0x7E;
+      
+      // 帧序号（2字节，大端序）
+      packetWithHeader[1] = (packetIndex >> 8) & 0xFF;   // 高字节
+      packetWithHeader[2] = packetIndex & 0xFF;           // 低字节
+      
+      // 数据主体（实际长度）
+      packetWithHeader.set(packetData, 3);
+      
+      // 创建当前数据包的 ArrayBuffer
+      const packetBuffer = packetWithHeader.buffer;
+      
+      console.log(`第 ${packetIndex + 1}/${totalPackets} 个数据包结构:`, {
+        帧头: '0x7E',
+        帧序号: packetIndex,
+        实际数据长度: packetData.length,
+        总长度: packetTotalSize,
+        已发送字节: sentBytes,
+        剩余字节: bytes.length - sentBytes
+      });
+      
+      // 打印完整的包数据（十六进制）
+      const hexStr = Array.from(packetWithHeader)
+        .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
+        .join(' ');
+      console.log(`第 ${packetIndex + 1}/${totalPackets} 个数据包内容 (HEX):`, hexStr);
+      
+      // 发送数据包（无需等待应答）
+      await Taro.writeBLECharacteristicValue({
+        deviceId,
+        serviceId: serviceUUID,
+        characteristicId: writeUUID,
+        value: packetBuffer
+      });
+      
+      console.log(`第 ${packetIndex + 1}/${totalPackets} 个数据包已发送`);
+      
+      // 更新已发送字节数
+      sentBytes += packetData.length;
+      
+      // 发送进度回调
+      if (onProgress) {
+        const progress = Math.round((sentBytes / bytes.length) * 100);
+        onProgress(progress);
+      }
+      
+      // 如果不是最后一个包，等待40ms后再发送下一个包
+      if (sentBytes < bytes.length) {
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      
+      // 包索引递增
+      packetIndex++;
+    }
+    
+    console.log(`所有 ${totalPackets} 个数据包快速发送完成`);
+    Taro.showToast({
+      title: '传输完成',
+      icon: 'success',
+      duration: 1500
+    });
+    return true;
+  } catch (error) {
+    console.error('快速分包发送数据失败:', error);
+    
+    // 显示错误提示
+    const errorMessage = error instanceof Error ? error.message : error;
+    Taro.showToast({
+      title: `传输失败: ${errorMessage}`,
+      icon: 'none',
+      duration: 2000
+    });
+    
+    return false;
+  } finally {
+    // 无论成功或失败，都要关闭屏幕常亮
+    try {
+      await Taro.setKeepScreenOn({ keepScreenOn: false });
+      console.log('已关闭屏幕常亮（快速模式）');
+    } catch (keepScreenError) {
+      console.error('关闭屏幕常亮失败:', keepScreenError);
+    }
   }
 };

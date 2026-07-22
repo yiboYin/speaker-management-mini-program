@@ -14,13 +14,35 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 30px;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 20px 30px;
+    
+    // 垂直布局：label在控件上方
+    &.vertical {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+      padding-bottom: 24px;
+      border-bottom: none;  // ✅ 去除分割线
+      
+      .label {
+        width: auto;
+        margin-bottom: 0;
+      }
+    }
     
     .label {
       width: 120px;
       font-size: 30px;
       color: #333;
+      
+      // 在垂直布局中作为标题
+      .vertical & {
+        width: auto;
+        font-size: 26px;             // ✅ 调整为26px
+        font-weight: bold;           // ✅ 调整为bold
+        color: #333;
+        margin-bottom: 0;
+      }
     }
     
     switch {
@@ -39,9 +61,9 @@
       font-size: 24px;
     }
     
-    picker {
-      padding: 0 10px;
-    }
+    // picker {
+    //   padding: 0 10px;
+    // }
     
     .file-picker {
       width: 100%;
@@ -72,8 +94,9 @@
     
     .day-selector {
       display: flex;
-      flex: 1;
-      justify-content: space-around;
+      gap: 16px;
+      width: 100%;
+      justify-content: space-between;
       
       .day-item {
         flex: 1;
@@ -82,21 +105,21 @@
         align-items: center;
         
         .day-circle {
-          width: 48px;
-          height: 48px;
+          width: 56rpx;              // ✅ 更大的圆形
+          height: 56rpx;
           border-radius: 50%;
           display: flex;
           justify-content: center;
           align-items: center;
-          font-size: 18px;
+          font-size: 28rpx;          // ✅ 更大的字体
           font-weight: 500;
-          background-color: #f9f9f9;
-          color: #333;
+          background-color: #e8e8e8;
+          color: #999;
           cursor: pointer;
-          border: 1px solid #ff5722; /* 添加边框 */
+          transition: all 0.2s ease;
                 
           &.selected {
-            background-color: #ff5722;
+            background-color: #3b7fff;
             color: white;
           }
         }
@@ -121,16 +144,130 @@
       align-items: center;
       justify-content: space-between;
       padding: 8px 10px;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      font-size: 24px;
-      background-color: #f9f9f9;
+      border: 2px solid #b3d4ff;
+      border-radius: 8px;
+      font-size: 28rpx;
+      background-color: #f5f7fa;
       cursor: pointer;
-      height: 50px;
+      height: 60rpx;
       box-sizing: border-box;
+      width: 100%;
       
       &:after {
         content: '>'; 
+        color: #999;
+      }
+    }
+    
+    // 播放模式选择器
+    .mode-selector {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+      
+      .mode-btn {
+        flex: 1;                     // ✅ 平均分配空间
+        padding: 14px 20px;          // ✅ 更大的内边距
+        border: 2px solid #b3d4ff;
+        border-radius: 20px;
+        background-color: #ffffff;
+        color: #999;
+        font-size: 28rpx;            // ✅ 更大的字体
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        
+        &.active {
+          background-color: #3b7fff;
+          color: white;
+          border-color: transparent;
+        }
+        
+        &:active {
+          transform: scale(0.95);
+        }
+      }
+    }
+    
+    // 循环周期选择器
+    .interval-picker {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      
+      .picker-value {
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+        border: 2px solid #b3d4ff;
+        border-radius: 8px;
+        background-color: #f5f7fa;
+        font-size: 28rpx;
+        min-width: 80px;
+        justify-content: center;
+        color: #333;
+        
+        .arrow-icon {
+          font-size: 28rpx;
+          color: #999;
+          margin-left: 8px;
+        }
+      }
+      
+      .unit {
+        font-size: 28rpx;
+        color: #666;
+      }
+    }
+    
+    // 时间范围选择器
+    .time-range-selector {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+      
+      .range-btn {
+        flex: 1;                     // ✅ 平均分配空间
+        padding: 14px 32px;
+        border: 2px solid #b3d4ff;
+        border-radius: 20px;
+        background-color: #ffffff;
+        color: #999;
+        font-size: 28rpx;            // ✅ 更大的字体
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        
+        &.active {
+          background-color: #3b7fff;
+          color: white;
+          border-color: transparent;
+        }
+        
+        &:active {
+          transform: scale(0.95);
+        }
+      }
+    }
+    
+    // 数字输入框样式
+    input[type="number"] {
+      width: 50%;                    // ✅ 占父容器50%
+      padding: 12px 16px;
+      border: 2px solid #b3d4ff;
+      border-radius: 8px;
+      font-size: 28rpx;
+      color: #333;
+      background-color: #f5f7fa;
+      box-sizing: border-box;
+      
+      &:focus {
+        border-color: #3b7fff;
+        outline: none;
+        background-color: #fff;
+      }
+      
+      &::placeholder {
         color: #999;
       }
     }
@@ -144,14 +281,14 @@
     width: auto;
     
     .confirm-button {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-color: #3b7fff;
       color: white;
       border: none;
       border-radius: 24px;
       padding: 10px 32px;
-      font-size: 28px;
+      font-size: 28rpx;
       font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 12px rgba(59, 127, 255, 0.3);
     }
     
     .confirm-button::after {

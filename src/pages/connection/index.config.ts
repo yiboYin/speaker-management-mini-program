@@ -1,3 +1,3 @@
 export default definePageConfig({
-  navigationBarTitleText: '连接'
+  navigationBarTitleText: '设备'
 })
