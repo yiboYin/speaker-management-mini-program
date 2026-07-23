@@ -380,8 +380,8 @@ export const writeCommandToDeviceWithSplit = async (
     console.log('已开启屏幕常亮');
     
     const bytes = new Uint8Array(buffer);
-    const maxDataPerPacket = 128; // 每包固定携带128字节纯数据
-    const maxPacketTotalSize = 1 + 2 + maxDataPerPacket; // 总长度 = 1(帧头) + 2(帧序号) + 128(数据) = 131字节
+    const maxDataPerPacket = 128; // 每包固定128字节数据
+    const packetTotalSize = 1 + 2 + maxDataPerPacket + 1; // 帧头(1) + 帧序号(2) + 数据(128) + 校验位(1) = 132字节
     
     console.log(`准备分包发送数据:`, {
       原始数据大小: bytes.length,
@@ -462,8 +462,8 @@ export const writeCommandToDeviceWithSplit = async (
       const dataEnd = Math.min(dataStart + maxDataPerPacket, bytes.length);
       const packetData = bytes.slice(dataStart, dataEnd);
       
-      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度)
-      const packetTotalSize = 1 + 2 + packetData.length; // 根据实际数据长度动态计算（总长度≤131）
+      // 构建数据包：帧头(1) + 帧序号(2) + 数据(实际长度) + 校验位(1)
+      const packetTotalSize = 1 + 2 + packetData.length + 1; // 根据实际数据长度动态计算
       const packetWithHeader = new Uint8Array(packetTotalSize);
       
       // 帧头
@@ -476,6 +476,13 @@ export const writeCommandToDeviceWithSplit = async (
       // 数据主体（实际长度）
       packetWithHeader.set(packetData, 3);
       
+      // 计算校验位：所有字节相加取低8位
+      let checksum = 0;
+      for (let i = 0; i < packetTotalSize - 1; i++) {
+        checksum += packetWithHeader[i];
+      }
+      packetWithHeader[packetTotalSize - 1] = checksum & 0xFF;
+      
       // 创建当前数据包的 ArrayBuffer
       const packetBuffer = packetWithHeader.buffer;
       
@@ -484,6 +491,7 @@ export const writeCommandToDeviceWithSplit = async (
         帧序号: packetIndex,
         实际数据长度: packetData.length,
         总长度: packetTotalSize,
+        校验位: `0x${(checksum & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`,
         已发送字节: sentBytes,
         剩余字节: bytes.length - sentBytes
       });
